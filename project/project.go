@@ -20,6 +20,10 @@ func NewProject(rootPath string) *Project {
 	}
 }
 
+func (d *Project) GetRootPath() string {
+	return d.rootPath
+}
+
 // CreateDir 创建一个新目录
 func (d *Project) CreateDir(path string, info os.FileInfo) error {
 	if path == "." {
@@ -251,4 +255,12 @@ func (p *Project) GetName() string {
 		return "root"
 	}
 	return filepath.Base(p.rootPath)
+}
+
+// FindNode 查找指定路径的节点（公开方法）
+func (p *Project) FindNode(path string) (*Node, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	
+	return p.findNode(path)
 }

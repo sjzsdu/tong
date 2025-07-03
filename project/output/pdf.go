@@ -172,3 +172,8 @@ func NewPDFExporter(p *project.Project) (*PDFExporter, error) {
 		BaseExporter: project.NewBaseExporter(p, collector),
 	}, nil
 }
+
+// Export 实现Exporter接口
+func (p *PDFExporter) Export(outputPath string) error {
+	return p.BaseExporter.Export(outputPath)
+}

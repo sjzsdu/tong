@@ -52,3 +52,8 @@ func NewMarkdownExporter(p *project.Project) *MarkdownExporter {
 		BaseExporter: NewBaseExporter(p, NewMarkdownCollector()),
 	}
 }
+
+// Export 实现Exporter接口
+func (m *MarkdownExporter) Export(outputPath string) error {
+	return m.BaseExporter.Export(outputPath)
+}

@@ -83,3 +83,8 @@ func NewXMLExporter(p *project.Project) *XMLExporter {
 		BaseExporter: NewBaseExporter(p, NewXMLCollector()),
 	}
 }
+
+// Export 实现Exporter接口
+func (x *XMLExporter) Export(outputPath string) error {
+	return x.BaseExporter.Export(outputPath)
+}

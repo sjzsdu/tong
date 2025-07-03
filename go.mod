@@ -5,14 +5,17 @@ go 1.23.0
 toolchain go1.24.0
 
 require (
+	github.com/BurntSushi/toml v1.4.0
 	github.com/c-bata/go-prompt v0.2.6
 	github.com/charmbracelet/glamour v0.9.1
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-git/go-git/v5 v5.14.0
 	github.com/jung-kurt/gofpdf v1.16.2
 	github.com/nicksnyder/go-i18n/v2 v2.5.1
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/text v0.23.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -63,5 +66,4 @@ require (
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/term v0.30.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
