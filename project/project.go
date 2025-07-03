@@ -223,13 +223,6 @@ func (p *Project) GetTotalNodes() int {
 	return countNodes(p.root)
 }
 
-func (p *Project) GetLLMResponse() string {
-	if p.root == nil {
-		return ""
-	}
-	return p.root.GetLLMResponse()
-}
-
 // GetAllFiles 返回项目中所有文件的相对路径
 func (p *Project) GetAllFiles() ([]string, error) {
 	if p.root == nil {

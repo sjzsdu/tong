@@ -6,14 +6,13 @@ import (
 )
 
 type Node struct {
-	Name        string
-	IsDir       bool
-	Info        os.FileInfo
-	Content     []byte
-	LLMResponse *LLMResponse    // 改为指针类型
-	Children    map[string]*Node
-	Parent      *Node
-	mu          sync.RWMutex
+	Name     string
+	IsDir    bool
+	Info     os.FileInfo
+	Content  []byte
+	Children map[string]*Node
+	Parent   *Node
+	mu       sync.RWMutex
 }
 
 // Project 表示整个文档树
