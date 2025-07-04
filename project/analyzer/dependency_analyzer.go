@@ -47,6 +47,8 @@ func NewDefaultDependencyAnalyzer() *DefaultDependencyAnalyzer {
 		languageAnalyzers: map[string]LanguageDependencyAnalyzer{
 			".go":     &GoDependencyAnalyzer{},
 			".js":     &JSDependencyAnalyzer{},
+			".ts":     &TypeScriptDependencyAnalyzer{},
+			".tsx":    &TypeScriptDependencyAnalyzer{},
 			".json":   &JSONDependencyAnalyzer{},
 			".py":     &PythonDependencyAnalyzer{},
 			".java":   &JavaDependencyAnalyzer{},
@@ -570,6 +572,67 @@ func (g *GradleDependencyAnalyzer) Analyze(content []byte, filePath string) ([]*
 				})
 				// 使用文件路径作为源节点
 				edges = append(edges, filePath, depName)
+			}
+		}
+	}
+
+	return nodes, edges, nil
+}
+
+// TypeScriptDependencyAnalyzer TypeScript依赖分析器
+type TypeScriptDependencyAnalyzer struct {
+	// 复用JavaScript分析器的大部分逻辑
+	jsAnalyzer JSDependencyAnalyzer
+}
+
+// Analyze 实现 LanguageDependencyAnalyzer 接口
+func (t *TypeScriptDependencyAnalyzer) Analyze(content []byte, filePath string) ([]*DependencyNode, []string, error) {
+	// TypeScript的导入语法与JavaScript基本相同，但还支持类型导入语法
+	var nodes []*DependencyNode
+	var edges []string
+
+	// 先使用JavaScript分析器处理基本的导入语句
+	jsNodes, jsEdges, err := t.jsAnalyzer.Analyze(content, filePath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	nodes = append(nodes, jsNodes...)
+	edges = append(edges, jsEdges...)
+
+	// 分析TypeScript特有的导入语法，如 import type { ... } from '...'
+	scanner := bufio.NewScanner(bytes.NewReader(content))
+	typeImportRegex := regexp.MustCompile(`import\s+type\s+.*?from\s+['"]([^'"]+)['"]`)
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		// 跳过注释和空行
+		if line == "" || strings.HasPrefix(line, "//") || strings.HasPrefix(line, "/*") {
+			continue
+		}
+
+		// 查找类型导入
+		typeMatches := typeImportRegex.FindStringSubmatch(line)
+		if len(typeMatches) > 1 {
+			importPath := typeMatches[1]
+			if importPath != "" && !strings.Contains(importPath, "{") && !strings.Contains(importPath, "(") {
+				// 检查是否已经添加过该依赖
+				alreadyAdded := false
+				for _, node := range nodes {
+					if node.Name == importPath {
+						alreadyAdded = true
+						break
+					}
+				}
+
+				if !alreadyAdded {
+					nodes = append(nodes, &DependencyNode{
+						Name: importPath,
+						Type: "import",
+					})
+					edges = append(edges, filePath, importPath)
+				}
 			}
 		}
 	}

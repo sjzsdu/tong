@@ -6,28 +6,59 @@ import (
 	"reflect"
 )
 
+// 颜色常量
+const (
+	ColorReset  = "\033[0m"
+	ColorRed    = "\033[31m"
+	ColorGreen  = "\033[32m"
+	ColorYellow = "\033[33m"
+	ColorBlue   = "\033[34m"
+	ColorPurple = "\033[35m"
+	ColorCyan   = "\033[36m"
+	ColorGray   = "\033[37m"
+	ColorWhite  = "\033[97m"
+
+	ColorRedBold    = "\033[1;31m"
+	ColorGreenBold  = "\033[1;32m"
+	ColorYellowBold = "\033[1;33m"
+	ColorBlueBold   = "\033[1;34m"
+	ColorPurpleBold = "\033[1;35m"
+	ColorCyanBold   = "\033[1;36m"
+	ColorWhiteBold  = "\033[1;37m"
+)
+
+// ColorText 给文本添加颜色
+func ColorText(text, color string) string {
+	return color + text + ColorReset
+}
+
+// PrintColorText 打印彩色文本
+func PrintColorText(text, color string) {
+	fmt.Println(ColorText(text, color))
+}
+
 // PrintWithLabel 带标签的打印，方便调试时识别输出内容
 func PrintWithLabel(label string, v ...interface{}) {
-    fmt.Printf("[%s]: ", label)
-    if len(v) == 0 {
-        fmt.Println("nil")
-        return
-    }
-    
-    if len(v) == 1 {
-        Print(v[0])
-        return
-    }
-    
-    // 处理多个参数
-    fmt.Print("[ ")
-    for i, item := range v {
-        if i > 0 {
-            fmt.Print(", ")
-        }
-        Print(item)
-    }
-    fmt.Println(" ]")
+	fmt.Printf("[%s]: ", label)
+	if len(v) == 0 {
+		fmt.Println("nil")
+		return
+	}
+
+	if len(v) == 1 {
+		Print(v[0])
+		return
+	}
+
+	// 处理多个参数
+	fmt.Print("[ ")
+	for i, item := range v {
+		if i > 0 {
+			fmt.Print(", ")
+		}
+		Print(item)
+	}
+	fmt.Println(" ]")
 }
 
 func Print(v interface{}) {
