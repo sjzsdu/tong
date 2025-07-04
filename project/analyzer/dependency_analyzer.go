@@ -117,10 +117,12 @@ func (g *GoDependencyAnalyzer) Analyze(content []byte, filePath string) ([]*Depe
 
 	// 分析 Go 源文件中的导入
 	scanner := bufio.NewScanner(bytes.NewReader(content))
-	importRegex := regexp.MustCompile(`import\s+\(([^)]+)\)|import\s+([^\s]+)`)
 	packageRegex := regexp.MustCompile(`package\s+(\w+)`)
 
 	var packageName string
+	var inImportBlock bool
+	var importBlock string
+
 	for scanner.Scan() {
 		line := scanner.Text()
 
@@ -132,42 +134,63 @@ func (g *GoDependencyAnalyzer) Analyze(content []byte, filePath string) ([]*Depe
 			}
 		}
 
-		// 查找导入
-		matches := importRegex.FindStringSubmatch(line)
-		if len(matches) > 1 {
-			// 多行导入
-			if matches[1] != "" {
-				imports := strings.Split(matches[1], "\n")
-				for _, imp := range imports {
-					imp = strings.TrimSpace(imp)
-					if imp == "" || strings.HasPrefix(imp, "//") {
-						continue
-					}
-					// 清理引号
-					imp = strings.Trim(imp, `"`)
-					if imp != "" {
+		// 检查是否是单行导入
+		singleImportMatches := regexp.MustCompile(`import\s+"([^"]+)"`).FindStringSubmatch(line)
+		if len(singleImportMatches) > 1 {
+			importPath := singleImportMatches[1]
+			if importPath != "" {
+				nodes = append(nodes, &DependencyNode{
+					Name: importPath,
+					Type: "import",
+				})
+				if packageName != "" {
+					edges = append(edges, packageName, importPath)
+				}
+			}
+			continue
+		}
+
+		// 检查是否开始导入块
+		if strings.Contains(line, "import (") {
+			inImportBlock = true
+			continue
+		}
+
+		// 检查是否结束导入块
+		if inImportBlock && strings.Contains(line, ")") {
+			inImportBlock = false
+
+			// 处理收集到的导入块
+			importLines := strings.Split(importBlock, "\n")
+			for _, impLine := range importLines {
+				impLine = strings.TrimSpace(impLine)
+				if impLine == "" || strings.HasPrefix(impLine, "//") {
+					continue
+				}
+
+				// 提取引号中的导入路径
+				importMatches := regexp.MustCompile(`"([^"]+)"`).FindStringSubmatch(impLine)
+				if len(importMatches) > 1 {
+					importPath := importMatches[1]
+					if importPath != "" {
 						nodes = append(nodes, &DependencyNode{
-							Name: imp,
+							Name: importPath,
 							Type: "import",
 						})
 						if packageName != "" {
-							edges = append(edges, packageName, imp)
+							edges = append(edges, packageName, importPath)
 						}
 					}
 				}
-			} else if matches[2] != "" {
-				// 单行导入
-				imp := strings.Trim(matches[2], `"`)
-				if imp != "" {
-					nodes = append(nodes, &DependencyNode{
-						Name: imp,
-						Type: "import",
-					})
-					if packageName != "" {
-						edges = append(edges, packageName, imp)
-					}
-				}
 			}
+
+			importBlock = "" // 重置导入块
+			continue
+		}
+
+		// 收集导入块内的内容
+		if inImportBlock {
+			importBlock += line + "\n"
 		}
 	}
 
@@ -262,10 +285,16 @@ func (j *JSDependencyAnalyzer) Analyze(content []byte, filePath string) ([]*Depe
 
 	// 分析 JS 源文件中的导入
 	scanner := bufio.NewScanner(bytes.NewReader(content))
-	importRegex := regexp.MustCompile(`import\s+.*?from\s+['"]([^'"]+)['"]|require\(['"]([^'"]+)['"]\)`)
+	// 改进正则表达式，更精确地匹配JS导入语句
+	importRegex := regexp.MustCompile(`import\s+.*?from\s+['"]([^'"]+)['"]|require\(\s*['"]([^'"]+)['"]\s*\)`)
 
 	for scanner.Scan() {
-		line := scanner.Text()
+		line := strings.TrimSpace(scanner.Text())
+
+		// 跳过注释和空行
+		if line == "" || strings.HasPrefix(line, "//") || strings.HasPrefix(line, "/*") {
+			continue
+		}
 
 		// 查找导入
 		matches := importRegex.FindAllStringSubmatch(line, -1)
@@ -277,7 +306,7 @@ func (j *JSDependencyAnalyzer) Analyze(content []byte, filePath string) ([]*Depe
 				importPath = match[2]
 			}
 
-			if importPath != "" {
+			if importPath != "" && !strings.Contains(importPath, "{") && !strings.Contains(importPath, "(") {
 				nodes = append(nodes, &DependencyNode{
 					Name: importPath,
 					Type: "import",
@@ -357,13 +386,15 @@ func (p *PythonDependencyAnalyzer) Analyze(content []byte, filePath string) ([]*
 
 	// 分析 Python 源文件中的导入
 	scanner := bufio.NewScanner(bytes.NewReader(content))
-	importRegex := regexp.MustCompile(`^\s*import\s+([\w\.]+)|^\s*from\s+([\w\.]+)\s+import`)
+	// 改进正则表达式，更精确地匹配Python导入语句
+	importRegex := regexp.MustCompile(`^\s*import\s+([\w\.]+)\s*$|^\s*from\s+([\w\.]+)\s+import`)
 
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// 跳过注释
-		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+		// 跳过注释和空行
+		trimmedLine := strings.TrimSpace(line)
+		if trimmedLine == "" || strings.HasPrefix(trimmedLine, "#") {
 			continue
 		}
 
@@ -377,15 +408,17 @@ func (p *PythonDependencyAnalyzer) Analyze(content []byte, filePath string) ([]*
 				importPath = matches[2]
 			}
 
-			if importPath != "" {
+			if importPath != "" && !strings.Contains(importPath, " ") {
 				// 获取顶级包名
 				topLevelPackage := strings.Split(importPath, ".")[0]
-				nodes = append(nodes, &DependencyNode{
-					Name: topLevelPackage,
-					Type: "import",
-				})
-				// 使用文件路径作为源节点
-				edges = append(edges, filePath, topLevelPackage)
+				if topLevelPackage != "" {
+					nodes = append(nodes, &DependencyNode{
+						Name: topLevelPackage,
+						Type: "import",
+					})
+					// 使用文件路径作为源节点
+					edges = append(edges, filePath, topLevelPackage)
+				}
 			}
 		}
 	}
@@ -444,12 +477,18 @@ func (j *JavaDependencyAnalyzer) Analyze(content []byte, filePath string) ([]*De
 
 	// 分析 Java 源文件中的导入
 	scanner := bufio.NewScanner(bytes.NewReader(content))
-	importRegex := regexp.MustCompile(`^\s*import\s+([\w\.\*]+);`)
+	importRegex := regexp.MustCompile(`^\s*import\s+(static\s+)?([\w\.\*]+);`)
 	packageRegex := regexp.MustCompile(`^\s*package\s+([\w\.]+);`)
 
 	var packageName string
 	for scanner.Scan() {
 		line := scanner.Text()
+
+		// 跳过注释和空行
+		trimmedLine := strings.TrimSpace(line)
+		if trimmedLine == "" || strings.HasPrefix(trimmedLine, "//") || strings.HasPrefix(trimmedLine, "/*") {
+			continue
+		}
 
 		// 获取包名
 		if packageName == "" {
@@ -461,16 +500,20 @@ func (j *JavaDependencyAnalyzer) Analyze(content []byte, filePath string) ([]*De
 
 		// 查找导入
 		matches := importRegex.FindStringSubmatch(line)
-		if len(matches) > 1 {
-			importPath := matches[1]
-			// 获取顶级包名
-			topLevelPackage := strings.Split(importPath, ".")[0]
-			nodes = append(nodes, &DependencyNode{
-				Name: topLevelPackage,
-				Type: "import",
-			})
-			if packageName != "" {
-				edges = append(edges, packageName, topLevelPackage)
+		if len(matches) > 2 {
+			importPath := matches[2]
+			if importPath != "" && !strings.Contains(importPath, "(") {
+				// 获取顶级包名
+				topLevelPackage := strings.Split(importPath, ".")[0]
+				if topLevelPackage != "" {
+					nodes = append(nodes, &DependencyNode{
+						Name: topLevelPackage,
+						Type: "import",
+					})
+					if packageName != "" {
+						edges = append(edges, packageName, topLevelPackage)
+					}
+				}
 			}
 		}
 	}

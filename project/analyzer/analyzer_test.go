@@ -220,8 +220,8 @@ func TestPythonLanguageDependencyAnalyzer(t *testing.T) {
 import os
 import sys
 from flask import Flask, request
-import numpy as np
-import pandas as pd
+import numpy
+import pandas
 
 app = Flask(__name__)
 `)
