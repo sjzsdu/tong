@@ -488,6 +488,100 @@ func TestProjectMemoryUsage(t *testing.T) {
 	assert.Greater(t, totalContentSize, 0, "项目应该包含一些文件内容")
 }
 
+// TestNodeListFiles 测试节点列出文件名
+func TestNodeListFiles(t *testing.T) {
+	// 创建一个示例项目
+	projectPath := CreateExampleGoProject(t)
+	defer os.RemoveAll(projectPath) // 测试结束后清理
+
+	// 使用示例项目创建 Project 实例
+	project := NewProject(projectPath)
+
+	// 创建测试目录结构
+	err := project.CreateDir("testdir", &mockFileInfo{name: "testdir", isDir: true})
+	assert.NoError(t, err)
+
+	err = project.CreateFile("testdir/file1.txt", []byte("内容1"), &mockFileInfo{name: "file1.txt", isDir: false})
+	assert.NoError(t, err)
+
+	err = project.CreateFile("testdir/file2.txt", []byte("内容2"), &mockFileInfo{name: "file2.txt", isDir: false})
+	assert.NoError(t, err)
+
+	err = project.CreateDir("testdir/subdir", &mockFileInfo{name: "subdir", isDir: true})
+	assert.NoError(t, err)
+
+	err = project.CreateFile("testdir/subdir/file3.txt", []byte("内容3"), &mockFileInfo{name: "file3.txt", isDir: false})
+	assert.NoError(t, err)
+
+	// 测试目录节点的 ListFiles 方法
+	dirNode, err := project.FindNode("testdir")
+	assert.NoError(t, err)
+
+	fileNames := dirNode.ListFiles()
+	assert.Equal(t, 3, len(fileNames), "应该返回3个文件名")
+	assert.Contains(t, fileNames, "file1.txt")
+	assert.Contains(t, fileNames, "file2.txt")
+	assert.Contains(t, fileNames, "file3.txt")
+
+	// 测试子目录节点的 ListFiles 方法
+	subdirNode, err := project.FindNode("testdir/subdir")
+	assert.NoError(t, err)
+
+	subFileNames := subdirNode.ListFiles()
+	assert.Equal(t, 1, len(subFileNames), "子目录应该返回1个文件名")
+	assert.Equal(t, "file3.txt", subFileNames[0])
+
+	// 测试文件节点的 ListFiles 方法
+	fileNode, err := project.FindNode("testdir/file1.txt")
+	assert.NoError(t, err)
+
+	singleFileName := fileNode.ListFiles()
+	assert.Equal(t, 1, len(singleFileName), "文件节点应该返回1个文件名")
+	assert.Equal(t, "file1.txt", singleFileName[0])
+}
+
+// TestProjectListFiles 测试项目列出文件名
+func TestProjectListFiles(t *testing.T) {
+	// 创建一个示例项目
+	projectPath := CreateExampleGoProject(t)
+	defer os.RemoveAll(projectPath) // 测试结束后清理
+
+	// 使用示例项目创建 GoProject 实例，这会加载项目内容
+	goProject := GetSharedProject(t, projectPath)
+	project := goProject.Project
+
+	// 创建一些测试文件
+	err := project.CreateFile("custom1.txt", []byte("内容1"), &mockFileInfo{name: "custom1.txt", isDir: false})
+	assert.NoError(t, err)
+	
+	err = project.CreateFile("custom2.txt", []byte("内容2"), &mockFileInfo{name: "custom2.txt", isDir: false})
+	assert.NoError(t, err)
+
+	// 测试 Project.ListFiles 方法
+	fileNames, err := project.ListFiles()
+	assert.NoError(t, err)
+	
+	// 示例项目已经有一些文件，加上我们创建的两个
+	assert.True(t, len(fileNames) >= 2)
+	assert.Contains(t, fileNames, "custom1.txt")
+	assert.Contains(t, fileNames, "custom2.txt")
+	
+	// 对于示例项目中已有的文件，我们也应该验证它们
+	// 这些是我们知道的在示例项目中存在的一些文件
+	assert.Contains(t, fileNames, "main.go")
+	assert.Contains(t, fileNames, "go.mod")
+	assert.Contains(t, fileNames, "config.json")
+	assert.Contains(t, fileNames, "README.md")
+
+	// 空项目测试
+	emptyProject := NewProject("")
+	emptyProject.root = nil
+
+	_, err = emptyProject.ListFiles()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "project root is nil")
+}
+
 // mockFileInfo 是一个模拟的 os.FileInfo 实现
 type mockFileInfo struct {
 	name    string

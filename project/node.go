@@ -3,6 +3,8 @@ package project
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -52,19 +54,129 @@ func (node *Node) calculateDirHash() (string, error) {
 	return hex.EncodeToString(hash[:]), nil
 }
 
-func countNodes(node *Node) int {
-	if node == nil || node.Name == "." {
+func (n *Node) CountNodes() int {
+	if n == nil {
 		return 0
 	}
 
-	// 检查是否是特殊目录
-	if node.Info != nil && node.Info.IsDir() && node.Info.Name() == "." {
-		return 0
-	}
+	n.mu.RLock()
+	defer n.mu.RUnlock()
 
 	count := 1 // 当前节点
-	for _, child := range node.Children {
-		count += countNodes(child)
+	for _, child := range n.Children {
+		count += child.CountNodes()
 	}
 	return count
+}
+
+func (n *Node) GetFiles(basePath string) []string {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	var files []string
+	currentPath := filepath.Join(basePath, n.Name)
+
+	if !n.IsDir {
+		return []string{currentPath}
+	}
+
+	for _, child := range n.Children {
+		childFiles := child.GetFiles(currentPath)
+		files = append(files, childFiles...)
+	}
+
+	return files
+}
+
+// Node 中添加的方法
+func (n *Node) ReadContent() ([]byte, error) {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	if n.IsDir {
+		return nil, errors.New("cannot read directory")
+	}
+
+	return n.Content, nil
+}
+
+func (n *Node) WriteContent(content []byte) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if n.IsDir {
+		return errors.New("cannot write to directory")
+	}
+
+	n.Content = content
+	n.MarkModified()
+	return nil
+}
+
+// AddChild 添加子节点
+func (n *Node) AddChild(child *Node) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if !n.IsDir {
+		return errors.New("cannot add child to a file node")
+	}
+
+	if _, exists := n.Children[child.Name]; exists {
+		return errors.New("child with name already exists")
+	}
+
+	child.Parent = n
+	n.Children[child.Name] = child
+	return nil
+}
+
+// GetChild 获取子节点
+func (n *Node) GetChild(name string) (*Node, bool) {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	child, exists := n.Children[name]
+	return child, exists
+}
+
+func (n *Node) MarkModified() {
+	n.modified = true
+	if n.Parent != nil {
+		n.Parent.MarkModified()
+	}
+}
+
+func (n *Node) IsModified() bool {
+	return n.modified
+}
+
+func (n *Node) ClearModified() {
+	n.modified = false
+	for _, child := range n.Children {
+		child.ClearModified()
+	}
+}
+
+// ListFiles 返回节点子树中所有文件的名称（不包含路径）
+func (n *Node) ListFiles() []string {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	var fileNames []string
+
+	if !n.IsDir {
+		return []string{n.Name}
+	}
+
+	for _, child := range n.Children {
+		if !child.IsDir {
+			fileNames = append(fileNames, child.Name)
+		} else {
+			childFiles := child.ListFiles()
+			fileNames = append(fileNames, childFiles...)
+		}
+	}
+
+	return fileNames
 }

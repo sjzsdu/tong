@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // NewProject 创建一个新的文档树
@@ -84,7 +85,7 @@ func (d *Project) CreateFile(path string, content []byte, info os.FileInfo) erro
 	return nil
 }
 
-// ReadFile 读取文件内容
+// 修改 Project 中的方法
 func (d *Project) ReadFile(path string) ([]byte, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -94,17 +95,9 @@ func (d *Project) ReadFile(path string) ([]byte, error) {
 		return nil, err
 	}
 
-	node.mu.RLock()
-	defer node.mu.RUnlock()
-
-	if node.IsDir {
-		return nil, errors.New("cannot read directory")
-	}
-
-	return node.Content, nil
+	return node.ReadContent()
 }
 
-// WriteFile 写入文件内容
 func (d *Project) WriteFile(path string, content []byte) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -114,15 +107,7 @@ func (d *Project) WriteFile(path string, content []byte) error {
 		return err
 	}
 
-	node.mu.Lock()
-	defer node.mu.Unlock()
-
-	if node.IsDir {
-		return errors.New("cannot write to directory")
-	}
-
-	node.Content = content
-	return nil
+	return node.WriteContent(content)
 }
 
 // 辅助函数，用于解析路径
@@ -224,7 +209,7 @@ func (p *Project) GetTotalNodes() int {
 	if p.root == nil {
 		return 0
 	}
-	return countNodes(p.root)
+	return p.root.CountNodes()
 }
 
 // GetAllFiles 返回项目中所有文件的相对路径
@@ -250,6 +235,15 @@ func (p *Project) GetAllFiles() ([]string, error) {
 	return files, nil
 }
 
+// ListFiles 返回项目中所有文件的名称（不包含路径）
+func (p *Project) ListFiles() ([]string, error) {
+	if p.root == nil {
+		return nil, fmt.Errorf("project root is nil")
+	}
+
+	return p.root.ListFiles(), nil
+}
+
 func (p *Project) GetName() string {
 	if p.rootPath == "" {
 		return "root"
@@ -261,6 +255,56 @@ func (p *Project) GetName() string {
 func (p *Project) FindNode(path string) (*Node, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	
+
 	return p.findNode(path)
+}
+
+func (p *Project) SaveToFS() error {
+	if p.root == nil {
+		return nil
+	}
+
+	return p.saveNodeToFS(p.root, p.rootPath)
+}
+
+func (p *Project) saveNodeToFS(node *Node, path string) error {
+	if node == nil {
+		return nil
+	}
+
+	nodePath := filepath.Join(path, node.Name)
+
+	// 如果是目录，确保目录存在
+	if node.IsDir {
+		if err := os.MkdirAll(nodePath, 0755); err != nil {
+			return err
+		}
+
+		// 递归处理所有子节点
+		for _, child := range node.Children {
+			if err := p.saveNodeToFS(child, nodePath); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// 如果是文件且被修改，写入磁盘
+	if !node.IsDir && node.IsModified() {
+		if err := os.WriteFile(nodePath, node.Content, 0644); err != nil {
+			return err
+		}
+		node.ClearModified()
+	}
+
+	return nil
+}
+
+func (p *Project) AutoSave(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	go func() {
+		for range ticker.C {
+			p.SaveToFS()
+		}
+	}()
 }

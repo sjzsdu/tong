@@ -8,6 +8,7 @@ import (
 type Node struct {
 	Name     string
 	IsDir    bool
+	modified bool
 	Info     os.FileInfo
 	Content  []byte
 	Children map[string]*Node
