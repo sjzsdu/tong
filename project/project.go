@@ -3,6 +3,7 @@ package project
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -307,4 +308,93 @@ func (p *Project) AutoSave(interval time.Duration) {
 			p.SaveToFS()
 		}
 	}()
+}
+
+// DeleteNode 从项目中删除指定节点（文件或目录）
+func (p *Project) DeleteNode(node *Node) error {
+	if node == nil {
+		return errors.New("cannot delete nil node")
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// 如果节点是根节点，不允许删除
+	if node == p.root {
+		return errors.New("cannot delete root node")
+	}
+
+	parent := node.Parent
+	if parent == nil {
+		return errors.New("node has no parent")
+	}
+
+	// 获取父节点写锁
+	parent.mu.Lock()
+	defer parent.mu.Unlock()
+
+	// 检查节点是否存在于父节点的子节点映射中
+	if _, exists := parent.Children[node.Name]; !exists {
+		return errors.New("node not found in parent's children")
+	}
+
+	// 从父节点的子节点映射中删除节点
+	delete(parent.Children, node.Name)
+
+	// 标记父节点为已修改
+	parent.MarkModified()
+
+	// 如果文件系统也要删除，这里可以增加实际文件系统的删除操作
+	if p.rootPath != "" {
+		nodePath := filepath.Join(p.rootPath, p.GetNodePath(node))
+		if node.IsDir {
+			// 删除目录
+			err := os.RemoveAll(nodePath)
+			if err != nil {
+				// 即使文件系统操作失败，内存中的节点已经被删除
+				log.Printf("Warning: Failed to remove directory from filesystem: %v", err)
+			}
+		} else {
+			// 删除文件
+			err := os.Remove(nodePath)
+			if err != nil {
+				// 即使文件系统操作失败，内存中的节点已经被删除
+				log.Printf("Warning: Failed to remove file from filesystem: %v", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// GetPath 获取节点在项目中的相对路径
+func (p *Project) GetNodePath(node *Node) string {
+	if node == nil || node == p.root {
+		return "/"
+	}
+
+	var path []string
+	current := node
+
+	// 从当前节点向上遍历到根节点，收集路径组件
+	for current != nil && current != p.root {
+		path = append([]string{current.Name}, path...)
+		current = current.Parent
+	}
+
+	return "/" + filepath.Join(path...)
+}
+
+// Traverse 便捷方法，使用前序遍历访问项目中的所有节点
+func (p *Project) Traverse(fn func(node *Node) error) error {
+	if p.root == nil {
+		return nil
+	}
+
+	traverser := NewTreeTraverser(p)
+	visitor := VisitorFunc(func(path string, node *Node, depth int) error {
+		return fn(node)
+	})
+
+	return traverser.TraverseTree(visitor)
 }
