@@ -7,6 +7,7 @@ import (
 	"github.com/sjzsdu/tong/lang"
 	"github.com/sjzsdu/tong/project"
 	"github.com/sjzsdu/tong/project/analyzer"
+	"github.com/sjzsdu/tong/project/git"
 	"github.com/sjzsdu/tong/project/health"
 	"github.com/sjzsdu/tong/project/output"
 	"github.com/sjzsdu/tong/project/search"
@@ -166,7 +167,7 @@ func runproject(cmd *cobra.Command, args []string) {
 
 	// 检查参数是否存在
 	if len(args) == 0 {
-		fmt.Println("请指定操作类型: pack, code, deps, quality, search")
+		fmt.Println("请指定操作类型: pack, code, deps, quality, search, blame")
 		return
 	}
 
@@ -216,8 +217,58 @@ func runproject(cmd *cobra.Command, args []string) {
 			fmt.Printf("%v\n", err)
 		}
 
+	case "blame":
+
+		// 创建 Git blame 分析器
+		blamer := git.NewDefaultGitBlamer(doc)
+
+		var blameInfo *git.BlameInfo
+		var err error
+
+		filePath := "/"
+		if len(args) > 1 && args[1] != "" {
+			filePath = args[1]
+		}
+
+		blameInfo, err = blamer.Blame(filePath)
+		if err != nil {
+			fmt.Printf("Blame 分析失败: %v\n", err)
+			fmt.Println("请确保当前目录是一个有效的 Git 仓库，且指定的文件路径存在")
+			return
+		}
+
+		// 输出 blame 分析结果
+		fmt.Printf("文件: %s\n", blameInfo.FilePath)
+		fmt.Printf("总行数: %d\n\n", blameInfo.TotalLines)
+
+		// 输出作者贡献统计
+		fmt.Println("作者贡献统计:")
+		for author, lines := range blameInfo.Authors {
+			fmt.Printf("%s: %d 行 (%.2f%%)\n", author, lines, float64(lines)/float64(blameInfo.TotalLines)*100)
+		}
+
+		// 输出日期统计
+		fmt.Println("\n日期统计:")
+		for date, lines := range blameInfo.Dates {
+			fmt.Printf("%s: %d 行\n", date, lines)
+		}
+
+		// 检查是否需要显示详细行信息
+		if len(args) > 2 && args[2] == "--detail" {
+			fmt.Println("\n详细行信息:")
+			for _, line := range blameInfo.Lines {
+				fmt.Printf("行 %d: %s (%s) - %s\n",
+					line.LineNum,
+					line.Author,
+					line.CommitTime.Format("2006-01-02"),
+					line.Content)
+			}
+		} else {
+			fmt.Println("\n提示: 使用 'project blame <文件路径> --detail' 可查看详细行信息")
+		}
+
 	default:
 		fmt.Printf("未知的操作类型: %s\n", args[0])
-		fmt.Println("支持的操作: pack, code, deps, quality, search")
+		fmt.Println("支持的操作: pack, code, deps, quality, search, blame")
 	}
 }

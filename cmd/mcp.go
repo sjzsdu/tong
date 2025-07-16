@@ -95,7 +95,7 @@ func runMCP(cmd *cobra.Command, args []string) {
 func displayAvailableTools() {
 	tools := mcpserver.GetAvailableTools()
 
-	fmt.Println("\n=== MCP 服务器提供的工具 ===\n")
+	fmt.Println("=== MCP 服务器提供的工具 ===")
 
 	// 按类别组织工具
 	fileTools := []map[string]string{}
