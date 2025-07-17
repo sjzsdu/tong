@@ -1,8 +1,10 @@
-package project
+package editor
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/sjzsdu/tong/project"
 )
 
 // TextEdit 表示对文本的单个编辑操作
@@ -54,11 +56,11 @@ type ChangeSet struct {
 
 // EditorAPI 提供类似编辑器的API，用于高效编辑文本
 type EditorAPI struct {
-	project *Project
+	project *project.Project
 }
 
 // NewEditorAPI 创建一个新的编辑器API
-func NewEditorAPI(project *Project) *EditorAPI {
+func NewEditorAPI(project *project.Project) *EditorAPI {
 	return &EditorAPI{
 		project: project,
 	}

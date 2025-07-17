@@ -20,7 +20,13 @@ var sharedProject *GoProject
 // GetSharedProject 获取全局共享的项目实例
 // 如果项目还未初始化，则使用提供的路径初始化项目
 // 如果路径为空，则使用当前工作目录
+// 如果提供了新路径且与当前sharedProject路径不同，则重置sharedProject
 func GetSharedProject(t *testing.T, projectPath string) *GoProject {
+	// 如果提供了新路径且与当前sharedProject路径不同，则重置sharedProject
+	if projectPath != "" && sharedProject != nil && sharedProject.RootPath != projectPath {
+		sharedProject = nil
+	}
+
 	if sharedProject != nil {
 		return sharedProject
 	}

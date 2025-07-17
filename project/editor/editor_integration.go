@@ -1,7 +1,9 @@
-package project
+package editor
 
 import (
 	"fmt"
+
+	"github.com/sjzsdu/tong/project"
 )
 
 // EditorIntegration 提供与大模型和自动化工具集成的编辑器接口
@@ -12,7 +14,7 @@ type EditorIntegration struct {
 }
 
 // NewEditorIntegration 创建新的编辑器集成界面
-func NewEditorIntegration(project *Project) *EditorIntegration {
+func NewEditorIntegration(project *project.Project) *EditorIntegration {
 	editor := NewEditorAPI(project)
 	return &EditorIntegration{
 		editor:          editor,

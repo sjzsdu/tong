@@ -158,7 +158,7 @@ func (p *PDFCollector) Render(outputPath string) error {
 
 // PDFExporter 使用 BaseExporter 和 PDFCollector
 type PDFExporter struct {
-	*project.BaseExporter
+	*BaseExporter
 }
 
 // NewPDFExporter 创建一个新的 PDF 导出器
@@ -169,7 +169,7 @@ func NewPDFExporter(p *project.Project) (*PDFExporter, error) {
 	}
 
 	return &PDFExporter{
-		BaseExporter: project.NewBaseExporter(p, collector),
+		BaseExporter: NewBaseExporter(p, collector),
 	}, nil
 }
 

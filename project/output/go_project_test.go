@@ -1,22 +1,22 @@
-package project
+package output
 
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
+	"github.com/sjzsdu/tong/project"
 	"github.com/stretchr/testify/assert"
 )
 
 // TestGoProject 测试使用Go项目的功能
 func TestGoProject(t *testing.T) {
 	// 创建一个示例项目
-	projectPath := CreateExampleGoProject(t)
+	projectPath := project.CreateExampleGoProject(t)
 	defer os.RemoveAll(projectPath) // 测试结束后清理
 
 	// 使用示例项目创建 GoProject 实例
-	goProject := GetSharedProject(t, projectPath)
+	goProject := project.GetSharedProject(t, projectPath)
 
 	// 验证项目结构
 	assert.NotNil(t, goProject.Project)
@@ -68,7 +68,7 @@ func TestGoProject(t *testing.T) {
 // TestProjectBasicOperations 测试项目基本操作
 func TestProjectBasicOperations(t *testing.T) {
 	// 使用共享项目
-	goProject := GetSharedProject(t, "")
+	goProject := project.GetSharedProject(t, "")
 	project := goProject.GetProject()
 
 	// 测试 GetRootPath
@@ -89,7 +89,7 @@ func TestProjectBasicOperations(t *testing.T) {
 
 // TestProjectFileOperations 测试项目文件操作
 func TestProjectFileOperations(t *testing.T) {
-	goProject := GetSharedProject(t, "")
+	goProject := project.GetSharedProject(t, "")
 	project := goProject.GetProject()
 
 	// 测试读取存在的文件
@@ -109,7 +109,7 @@ func TestProjectFileOperations(t *testing.T) {
 
 // TestProjectWriteOperations 测试项目写入操作
 func TestProjectWriteOperations(t *testing.T) {
-	goProject := GetSharedProject(t, "")
+	goProject := project.GetSharedProject(t, "")
 	project := goProject.GetProject()
 
 	// 测试写入现有文件
@@ -134,7 +134,7 @@ func TestProjectWriteOperations(t *testing.T) {
 
 // TestProjectFindNode 测试查找节点功能
 func TestProjectFindNode(t *testing.T) {
-	goProject := GetSharedProject(t, "")
+	goProject := project.GetSharedProject(t, "")
 	project := goProject.GetProject()
 
 	// 测试查找根节点
@@ -169,7 +169,7 @@ func TestProjectFindNode(t *testing.T) {
 
 // TestProjectGetAllFiles 测试获取所有文件
 func TestProjectGetAllFiles(t *testing.T) {
-	goProject := GetSharedProject(t, "")
+	goProject := project.GetSharedProject(t, "")
 	project := goProject.GetProject()
 
 	files, err := project.GetAllFiles()
@@ -195,7 +195,7 @@ func TestProjectGetAllFiles(t *testing.T) {
 
 // TestProjectGetAbsolutePath 测试获取绝对路径
 func TestProjectGetAbsolutePath(t *testing.T) {
-	goProject := GetSharedProject(t, "")
+	goProject := project.GetSharedProject(t, "")
 	project := goProject.GetProject()
 
 	// 测试获取文件的绝对路径
@@ -211,7 +211,7 @@ func TestProjectGetAbsolutePath(t *testing.T) {
 
 // TestProjectNodeHashCalculation 测试节点哈希计算
 func TestProjectNodeHashCalculation(t *testing.T) {
-	goProject := GetSharedProject(t, "")
+	goProject := project.GetSharedProject(t, "")
 	project := goProject.GetProject()
 
 	// 测试文件节点哈希计算
@@ -242,171 +242,4 @@ func TestProjectNodeHashCalculation(t *testing.T) {
 	rootHash, err := rootNode.CalculateHash()
 	assert.NoError(t, err)
 	assert.NotEmpty(t, rootHash)
-}
-
-// TestTreeTraverser 测试树遍历器
-func TestTreeTraverser(t *testing.T) {
-	goProject := GetSharedProject(t, "")
-	project := goProject.GetProject()
-
-	// 测试前序遍历
-	var visitedPaths []string
-	visitor := VisitorFunc(func(path string, node *Node, depth int) error {
-		visitedPaths = append(visitedPaths, path)
-		return nil
-	})
-
-	traverser := NewTreeTraverser(project)
-	err := traverser.SetTraverseOrder(PreOrder).TraverseTree(visitor)
-	assert.NoError(t, err)
-	assert.NotEmpty(t, visitedPaths)
-
-	// 验证根路径被访问
-	assert.Contains(t, visitedPaths, "/")
-
-	// 测试后序遍历
-	visitedPaths = []string{}
-	err = traverser.SetTraverseOrder(PostOrder).TraverseTree(visitor)
-	assert.NoError(t, err)
-	assert.NotEmpty(t, visitedPaths)
-
-	// 测试中序遍历
-	visitedPaths = []string{}
-	err = traverser.SetTraverseOrder(InOrder).TraverseTree(visitor)
-	assert.NoError(t, err)
-	assert.NotEmpty(t, visitedPaths)
-}
-
-// TestTreeTraverserWithFilter 测试带过滤的遍历
-func TestTreeTraverserWithFilter(t *testing.T) {
-	goProject := GetSharedProject(t, "")
-	project := goProject.GetProject()
-
-	// 只访问 .go 文件
-	var goFiles []string
-	visitor := VisitorFunc(func(path string, node *Node, depth int) error {
-		if !node.IsDir && filepath.Ext(node.Name) == ".go" {
-			goFiles = append(goFiles, path)
-		}
-		return nil
-	})
-
-	traverser := NewTreeTraverser(project)
-	err := traverser.TraverseTree(visitor)
-	assert.NoError(t, err)
-	assert.NotEmpty(t, goFiles)
-
-	// 验证所有文件都是 .go 文件
-	for _, file := range goFiles {
-		assert.True(t, strings.HasSuffix(file, ".go"), "文件应该以 .go 结尾: %s", file)
-	}
-}
-
-// TestBaseExporter 测试基础导出器
-func TestBaseExporter(t *testing.T) {
-	goProject := GetSharedProject(t, "")
-	project := goProject.GetProject()
-
-	// 创建一个简单的内容收集器用于测试
-	collector := &MockContentCollector{
-		titles:   []string{},
-		contents: []string{},
-		tocItems: []string{},
-	}
-
-	exporter := NewBaseExporter(project, collector)
-
-	// 测试目录访问
-	err := exporter.VisitDirectory(project.root, "/", 0)
-	assert.NoError(t, err)
-
-	// 测试文件访问
-	fileNode, err := project.FindNode("/main.go")
-	assert.NoError(t, err)
-
-	err = exporter.VisitFile(fileNode, "/main.go", 1)
-	assert.NoError(t, err)
-}
-
-// TestBuildProjectTree 测试构建项目树
-func TestBuildProjectTree(t *testing.T) {
-	// 创建一个临时项目用于测试
-	tempDir := CreateExampleGoProject(t)
-	defer os.RemoveAll(tempDir)
-
-	// 测试默认选项
-	options := DefaultWalkDirOptions()
-	builtProject, err := BuildProjectTree(tempDir, options)
-	assert.NoError(t, err)
-	assert.NotNil(t, builtProject)
-	assert.False(t, builtProject.IsEmpty())
-
-	// 测试只包含特定扩展名的文件
-	options.Extensions = []string{"go"}
-	goOnlyProject, err := BuildProjectTree(tempDir, options)
-	assert.NoError(t, err)
-	assert.NotNil(t, goOnlyProject)
-
-	files, err := goOnlyProject.GetAllFiles()
-	assert.NoError(t, err)
-	for _, file := range files {
-		assert.True(t, strings.HasSuffix(file, ".go"), "应该只包含 .go 文件: %s", file)
-	}
-
-	// 测试禁用 .gitignore
-	options.DisableGitIgnore = true
-	options.Extensions = []string{"*"}
-	fullProject, err := BuildProjectTree(tempDir, options)
-	assert.NoError(t, err)
-	assert.NotNil(t, fullProject)
-}
-
-// TestProjectWithEmptyDirectory 测试空目录处理
-func TestProjectWithEmptyDirectory(t *testing.T) {
-	// 创建一个临时空目录
-	tempDir, err := os.MkdirTemp("", "empty-project-*")
-	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
-
-	// 构建空项目
-	options := DefaultWalkDirOptions()
-	emptyProject, err := BuildProjectTree(tempDir, options)
-	assert.NoError(t, err)
-	assert.NotNil(t, emptyProject)
-	assert.True(t, emptyProject.IsEmpty())
-
-	// 测试空项目的方法
-	files, err := emptyProject.GetAllFiles()
-	assert.NoError(t, err)
-	assert.Empty(t, files)
-
-	totalNodes := emptyProject.GetTotalNodes()
-	assert.Equal(t, 1, totalNodes) // 只有根节点
-}
-
-// MockContentCollector 用于测试的模拟内容收集器
-type MockContentCollector struct {
-	titles   []string
-	contents []string
-	tocItems []string
-}
-
-func (m *MockContentCollector) AddTitle(title string, level int) error {
-	m.titles = append(m.titles, title)
-	return nil
-}
-
-func (m *MockContentCollector) AddContent(content string) error {
-	m.contents = append(m.contents, content)
-	return nil
-}
-
-func (m *MockContentCollector) AddTOCItem(title string, level int) error {
-	m.tocItems = append(m.tocItems, title)
-	return nil
-}
-
-func (m *MockContentCollector) Render(outputPath string) error {
-	// 简单的测试实现，不实际写入文件
-	return nil
 }

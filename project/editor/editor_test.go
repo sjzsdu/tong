@@ -1,13 +1,15 @@
-package project
+package editor
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/sjzsdu/tong/project"
 )
 
 func TestEditorAPI(t *testing.T) {
 	// 创建测试项目
-	project := NewProject("/tmp/editor_test")
+	project := project.NewProject("/tmp/editor_test")
 
 	// 创建测试文件
 	testContent := []byte("package main\n\nimport (\n\t\"fmt\"\n)\n\nfunc main() {\n\tfmt.Println(\"Hello, World!\")\n}\n")
@@ -140,7 +142,7 @@ func TestEditorAPI(t *testing.T) {
 
 func TestEditorSession(t *testing.T) {
 	// 创建测试项目
-	project := NewProject("/tmp/editor_session_test")
+	project := project.NewProject("/tmp/editor_session_test")
 
 	// 创建测试文件
 	testContent := []byte("package main\n\nimport (\n\t\"fmt\"\n)\n\nfunc main() {\n\tfmt.Println(\"Hello, World!\")\n}\n")
@@ -355,7 +357,7 @@ func TestEditorSession(t *testing.T) {
 
 func TestEditorIntegration(t *testing.T) {
 	// 创建测试项目
-	project := NewProject("/tmp/editor_integration_test")
+	project := project.NewProject("/tmp/editor_integration_test")
 
 	// 创建测试文件
 	testContent := []byte("package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nfunc main() {\n\tfmt.Println(\"编辑器集成测试\")\n}\n")
