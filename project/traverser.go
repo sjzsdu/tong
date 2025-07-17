@@ -9,37 +9,6 @@ import (
 	"time"
 )
 
-// NodeVisitor 定义了节点访问器的接口
-type NodeVisitor interface {
-	// VisitDirectory 访问目录节点
-	VisitDirectory(node *Node, path string, depth int) error
-	// VisitFile 访问文件节点
-	VisitFile(node *Node, path string, depth int) error
-}
-
-// FilteredVisitor 是一个过滤访问器，可以根据条件跳过某些节点
-type FilteredVisitor struct {
-	Visitor    NodeVisitor                        // 实际的访问器
-	FileFilter func(node *Node, path string) bool // 文件过滤函数
-	DirFilter  func(node *Node, path string) bool // 目录过滤函数
-}
-
-// VisitDirectory 实现 NodeVisitor 接口
-func (fv *FilteredVisitor) VisitDirectory(node *Node, path string, depth int) error {
-	if fv.DirFilter != nil && !fv.DirFilter(node, path) {
-		return nil // 跳过此目录
-	}
-	return fv.Visitor.VisitDirectory(node, path, depth)
-}
-
-// VisitFile 实现 NodeVisitor 接口
-func (fv *FilteredVisitor) VisitFile(node *Node, path string, depth int) error {
-	if fv.FileFilter != nil && !fv.FileFilter(node, path) {
-		return nil // 跳过此文件
-	}
-	return fv.Visitor.VisitFile(node, path, depth)
-}
-
 // TraverseOrder 定义遍历顺序
 type TraverseOrder int
 
@@ -319,20 +288,6 @@ func (t *TreeTraverser) traversePreOrder(node *Node, children []*Node, path stri
 	return nil
 }
 
-// traverseError 封装遍历过程中的错误信息
-type traverseError struct {
-	Path     string
-	NodeName string
-	Err      error
-}
-
-func (e *traverseError) Error() string {
-	return fmt.Sprintf("遍历错误 [%s] 在节点 '%s': %v", e.Path, e.NodeName, e.Err)
-}
-
-// 添加一个用于限制并发的常量
-const maxConcurrentTraversals = 10
-
 // traversePostOrder 处理后序遍历
 func (t *TreeTraverser) traversePostOrder(node *Node, children []*Node, path string, depth int, visitor NodeVisitor) error {
 	// 初始化选项
@@ -490,6 +445,9 @@ func (t *TreeTraverser) traverseInOrder(node *Node, children []*Node, path strin
 	}
 	return nil
 }
+
+// 添加一个用于限制并发的常量
+const maxConcurrentTraversals = 10
 
 // Traverse 遍历节点的通用方法
 func (t *TreeTraverser) Traverse(node *Node, path string, depth int, visitor NodeVisitor) error {
