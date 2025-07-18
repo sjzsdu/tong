@@ -18,10 +18,15 @@ const (
 	InOrder                        // 中序遍历
 )
 
+// ProgressCallback 进度回调函数类型
+type ProgressCallback func(current int, filePath string)
+
 // TraverseOption 定义遍历选项
 type TraverseOption struct {
-	ContinueOnError bool    // 遇到错误时是否继续
-	Errors          []error // 记录所有错误
+	ContinueOnError  bool             // 遇到错误时是否继续
+	Errors           []error          // 记录所有错误
+	ProgressCallback ProgressCallback // 进度回调函数
+	ProcessedFiles   int              // 已处理文件数
 }
 
 // TreeTraverser 提供了树遍历的基本功能
@@ -35,6 +40,18 @@ type TreeTraverser struct {
 // SetOption 设置遍历选项
 func (t *TreeTraverser) SetOption(option *TraverseOption) *TreeTraverser {
 	t.option = option
+	return t
+}
+
+// WithProgressCallback 设置进度回调函数
+func (t *TreeTraverser) WithProgressCallback(callback ProgressCallback) *TreeTraverser {
+	if t.option == nil {
+		t.option = &TraverseOption{
+			Errors: make([]error, 0),
+		}
+	}
+	t.option.ProgressCallback = callback
+	t.option.ProcessedFiles = 0
 	return t
 }
 
@@ -169,6 +186,14 @@ func (t *TreeTraverser) traverseParallel(ctx context.Context, node *Node, path s
 				Err:      err,
 			}
 		}
+
+		// 更新进度（需要线程安全）
+		if t.option.ProgressCallback != nil {
+			// 使用原子操作更新计数
+			t.option.ProcessedFiles++
+			t.option.ProgressCallback(t.option.ProcessedFiles, path)
+		}
+
 		return
 	}
 
@@ -476,10 +501,17 @@ func (t *TreeTraverser) Traverse(node *Node, path string, depth int, visitor Nod
 
 			if t.option.ContinueOnError {
 				t.option.Errors = append(t.option.Errors, fileErr)
-				return nil
+			} else {
+				return fileErr
 			}
-			return fileErr
 		}
+
+		// 更新进度
+		if t.option.ProgressCallback != nil {
+			t.option.ProcessedFiles++
+			t.option.ProgressCallback(t.option.ProcessedFiles, path)
+		}
+
 		return nil
 	}
 

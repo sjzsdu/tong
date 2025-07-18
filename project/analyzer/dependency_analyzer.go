@@ -26,8 +26,8 @@ type DependencyGraph struct {
 
 // DependencyAnalyzer 依赖分析器接口
 type DependencyAnalyzer interface {
-	// 分析项目依赖关系
-	AnalyzeDependencies(project *project.Project) (*DependencyGraph, error)
+	// 分析项目依赖关系，可选的进度回调参数
+	AnalyzeDependencies(project *project.Project, progressCallback ...project.ProgressCallback) (*DependencyGraph, error)
 }
 
 // LanguageDependencyAnalyzer 特定语言的依赖分析器
@@ -57,8 +57,8 @@ func NewDefaultDependencyAnalyzer() *DefaultDependencyAnalyzer {
 	}
 }
 
-// AnalyzeDependencies 实现 DependencyAnalyzer 接口
-func (d *DefaultDependencyAnalyzer) AnalyzeDependencies(p *project.Project) (*DependencyGraph, error) {
+// AnalyzeDependencies 实现 DependencyAnalyzer 接口，支持可选的进度回调
+func (d *DefaultDependencyAnalyzer) AnalyzeDependencies(p *project.Project, progressCallback ...project.ProgressCallback) (*DependencyGraph, error) {
 	graph := &DependencyGraph{
 		Nodes: make(map[string]*DependencyNode),
 		Edges: make(map[string][]string),
@@ -98,8 +98,14 @@ func (d *DefaultDependencyAnalyzer) AnalyzeDependencies(p *project.Project) (*De
 		return nil
 	})
 
-	// 遍历项目树
+	// 创建遍历器
 	traverser := project.NewTreeTraverser(p)
+
+	// 如果提供了进度回调，则使用带进度的遍历
+	if len(progressCallback) > 0 && progressCallback[0] != nil {
+		traverser = traverser.WithProgressCallback(progressCallback[0])
+	}
+
 	err := traverser.TraverseTree(visitor)
 	return graph, err
 }

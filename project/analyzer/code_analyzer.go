@@ -22,8 +22,8 @@ type CodeStats struct {
 
 // CodeAnalyzer 代码分析器接口
 type CodeAnalyzer interface {
-	// 分析代码并返回统计信息
-	Analyze(project *project.Project) (*CodeStats, error)
+	// 分析代码并返回统计信息，可选的进度回调参数
+	Analyze(project *project.Project, progressCallback ...project.ProgressCallback) (*CodeStats, error)
 }
 
 // DefaultCodeAnalyzer 默认代码分析器实现
@@ -36,41 +36,41 @@ type DefaultCodeAnalyzer struct {
 func NewDefaultCodeAnalyzer() *DefaultCodeAnalyzer {
 	return &DefaultCodeAnalyzer{
 		languageMap: map[string]string{
-			"go":   "Go",
-			"py":   "Python",
-			"js":   "JavaScript",
-			"ts":   "TypeScript",
-			"java": "Java",
-			"c":    "C",
-			"cpp":  "C++",
-			"h":    "C/C++ Header",
-			"hpp":  "C++ Header",
-			"cs":   "C#",
-			"php":  "PHP",
-			"rb":   "Ruby",
-			"swift":"Swift",
-			"kt":   "Kotlin",
-			"rs":   "Rust",
-			"html": "HTML",
-			"css":  "CSS",
-			"scss": "SCSS",
-			"sass": "Sass",
-			"less": "Less",
-			"xml":  "XML",
-			"json": "JSON",
-			"yaml": "YAML",
-			"yml":  "YAML",
-			"md":   "Markdown",
-			"txt":  "Text",
-			"sh":   "Shell",
-			"bat":  "Batch",
-			"ps1":  "PowerShell",
+			"go":    "Go",
+			"py":    "Python",
+			"js":    "JavaScript",
+			"ts":    "TypeScript",
+			"java":  "Java",
+			"c":     "C",
+			"cpp":   "C++",
+			"h":     "C/C++ Header",
+			"hpp":   "C++ Header",
+			"cs":    "C#",
+			"php":   "PHP",
+			"rb":    "Ruby",
+			"swift": "Swift",
+			"kt":    "Kotlin",
+			"rs":    "Rust",
+			"html":  "HTML",
+			"css":   "CSS",
+			"scss":  "SCSS",
+			"sass":  "Sass",
+			"less":  "Less",
+			"xml":   "XML",
+			"json":  "JSON",
+			"yaml":  "YAML",
+			"yml":   "YAML",
+			"md":    "Markdown",
+			"txt":   "Text",
+			"sh":    "Shell",
+			"bat":   "Batch",
+			"ps1":   "PowerShell",
 		},
 	}
 }
 
-// Analyze 实现 CodeAnalyzer 接口
-func (d *DefaultCodeAnalyzer) Analyze(p *project.Project) (*CodeStats, error) {
+// Analyze 实现 CodeAnalyzer 接口，支持可选的进度回调
+func (d *DefaultCodeAnalyzer) Analyze(p *project.Project, progressCallback ...project.ProgressCallback) (*CodeStats, error) {
 	stats := &CodeStats{
 		LanguageStats:   make(map[string]int),
 		FileTypeStats:   make(map[string]int),
@@ -103,8 +103,14 @@ func (d *DefaultCodeAnalyzer) Analyze(p *project.Project) (*CodeStats, error) {
 		return nil
 	})
 
-	// 遍历项目树
+	// 创建遍历器
 	traverser := project.NewTreeTraverser(p)
+
+	// 如果提供了进度回调，则使用带进度的遍历
+	if len(progressCallback) > 0 && progressCallback[0] != nil {
+		traverser = traverser.WithProgressCallback(progressCallback[0])
+	}
+
 	err := traverser.TraverseTree(visitor)
 	return stats, err
 }
