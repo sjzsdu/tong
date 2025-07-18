@@ -134,7 +134,16 @@ func analyzeCodeQuality(doc *project.Project) error {
 }
 
 // 搜索项目代码
-func searchProject(doc *project.Project, query string, options search.SearchOptions) error {
+func searchProject(doc *project.Project, query string) error {
+	// 设置搜索选项
+	options := search.SearchOptions{
+		CaseSensitive: false,
+		WholeWord:     false,
+		RegexMode:     false,
+		FileTypes:     extensions,
+		MaxResults:    50,
+	}
+
 	// 创建搜索引擎
 	searchEngine := search.NewDefaultSearchEngine()
 
@@ -154,6 +163,42 @@ func searchProject(doc *project.Project, query string, options search.SearchOpti
 	formatter := &search.MarkdownSearchFormatter{}
 	output := formatter.Format(results)
 	fmt.Println(output)
+
+	return nil
+}
+
+// Git blame 分析
+func analyzeBlame(doc *project.Project, filePath string) error {
+	// 创建 Git blame 分析器
+	blamer, err := git.NewGitBlamer(doc)
+	if err != nil {
+		return fmt.Errorf("创建 Git blame 分析器失败: %v", err)
+	}
+
+	if filePath == "" {
+		filePath = "/"
+	}
+
+	blameInfo, err := blamer.Blame(filePath)
+	if err != nil {
+		return fmt.Errorf("blame 分析失败: %v\n请确保当前目录是一个有效的 Git 仓库，且指定的文件路径存在", err)
+	}
+
+	// 输出 blame 分析结果
+	fmt.Printf("文件: %s\n", blameInfo.FilePath)
+	fmt.Printf("总行数: %d\n\n", blameInfo.TotalLines)
+
+	// 输出作者贡献统计
+	fmt.Println("作者贡献统计:")
+	for author, lines := range blameInfo.Authors {
+		fmt.Printf("%s: %d 行 (%.2f%%)\n", author, lines, float64(lines)/float64(blameInfo.TotalLines)*100)
+	}
+
+	// 输出日期统计
+	fmt.Println("\n日期统计:")
+	for date, lines := range blameInfo.Dates {
+		fmt.Printf("%s: %d 行\n", date, lines)
+	}
 
 	return nil
 }
@@ -205,66 +250,18 @@ func runproject(cmd *cobra.Command, args []string) {
 		}
 
 		// 设置搜索选项
-		options := search.SearchOptions{
-			CaseSensitive: false,
-			WholeWord:     false,
-			RegexMode:     false,
-			FileTypes:     extensions,
-			MaxResults:    50,
-		}
-
-		if err := searchProject(doc, args[1], options); err != nil {
+		if err := searchProject(doc, args[1]); err != nil {
 			fmt.Printf("%v\n", err)
 		}
 
 	case "blame":
-
-		// 创建 Git blame 分析器
-		blamer := git.NewDefaultGitBlamer(doc)
-
-		var blameInfo *git.BlameInfo
-		var err error
-
-		filePath := "/"
-		if len(args) > 1 && args[1] != "" {
+		var filePath string
+		if len(args) > 1 {
 			filePath = args[1]
 		}
 
-		blameInfo, err = blamer.Blame(filePath)
-		if err != nil {
-			fmt.Printf("Blame 分析失败: %v\n", err)
-			fmt.Println("请确保当前目录是一个有效的 Git 仓库，且指定的文件路径存在")
-			return
-		}
-
-		// 输出 blame 分析结果
-		fmt.Printf("文件: %s\n", blameInfo.FilePath)
-		fmt.Printf("总行数: %d\n\n", blameInfo.TotalLines)
-
-		// 输出作者贡献统计
-		fmt.Println("作者贡献统计:")
-		for author, lines := range blameInfo.Authors {
-			fmt.Printf("%s: %d 行 (%.2f%%)\n", author, lines, float64(lines)/float64(blameInfo.TotalLines)*100)
-		}
-
-		// 输出日期统计
-		fmt.Println("\n日期统计:")
-		for date, lines := range blameInfo.Dates {
-			fmt.Printf("%s: %d 行\n", date, lines)
-		}
-
-		// 检查是否需要显示详细行信息
-		if len(args) > 2 && args[2] == "--detail" {
-			fmt.Println("\n详细行信息:")
-			for _, line := range blameInfo.Lines {
-				fmt.Printf("行 %d: %s (%s) - %s\n",
-					line.LineNum,
-					line.Author,
-					line.CommitTime.Format("2006-01-02"),
-					line.Content)
-			}
-		} else {
-			fmt.Println("\n提示: 使用 'project blame <文件路径> --detail' 可查看详细行信息")
+		if err := analyzeBlame(doc, filePath); err != nil {
+			fmt.Printf("%v\n", err)
 		}
 
 	default:

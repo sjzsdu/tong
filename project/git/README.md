@@ -21,7 +21,11 @@ projectPath := "/path/to/your/git/project"
 p := project.NewProject(projectPath)
 
 // 创建GitBlamer实例
-blamer := git.NewDefaultGitBlamer(p)
+blamer, err := git.NewGitBlamer(p)
+if err != nil {
+    fmt.Printf("创建GitBlamer失败: %v\n", err)
+    return
+}
 ```
 
 ### 分析单个文件
@@ -67,8 +71,12 @@ fmt.Printf("分析的文件数: %d\n", len(blameResults))
 ### 分析整个项目
 
 ```go
-// 创建GitBlamer实例，自定义文件过滤器
-blamer := git.NewDefaultGitBlamer(p)
+// 创建GitBlamer实例
+blamer, err := git.NewGitBlamer(p)
+if err != nil {
+    fmt.Printf("创建GitBlamer失败: %v\n", err)
+    return
+}
 // 自定义文件过滤器，只分析Go文件
 blamer.FileFilter = func(path string) bool {
     return filepath.Ext(path) == ".go"
