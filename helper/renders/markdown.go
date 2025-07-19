@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/charmbracelet/glamour"
-	"github.com/sjzsdu/tong/lang"
 )
 
 // MarkdownRenderer 实现 Renderer 接口，提供 Markdown 渲染功能
@@ -35,14 +34,12 @@ func NewMarkdownRenderer() (*MarkdownRenderer, error) {
 }
 
 // WriteStream 实现 Renderer 接口，将内容写入缓冲区
-// 如果是第一次写入，会显示 "output...." 提示
 func (m *MarkdownRenderer) WriteStream(content string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// 第一次写入时显示提示
+	// 标记为正在输出状态
 	if !m.isOutputing {
-		fmt.Print(lang.T("Preparing..."))
 		m.isOutputing = true
 	}
 
@@ -60,9 +57,6 @@ func (m *MarkdownRenderer) Done() {
 	if !m.isOutputing {
 		return
 	}
-
-	// 清除 "output...." 提示
-	fmt.Print("\r                \r")
 
 	// 获取缓冲区内容
 	content := m.buffer.String()

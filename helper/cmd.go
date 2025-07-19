@@ -120,6 +120,8 @@ func ReadFromVim() (string, error) {
 }
 
 func InputString(promptText string) (string, error) {
+	// 确保提示符显示在新行
+	fmt.Println()
 	input, err := ReadFromTerminal(promptText)
 	if err != nil {
 		return "", fmt.Errorf("error reading input: %w", err)

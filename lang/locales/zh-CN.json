@@ -36,6 +36,7 @@
     "MCP server environtment": "MCP 服务器环境变量",
     "MCP server command arguments": "MCP 服务器命令参数",
     "Preparing...": "准备中...",
+    "Chat to the project": "与项目对话",
     "Chat with AI": "AI 对话",
     "Start an interactive chat session with AI using configured LLM provider": "启动一个基于配置的 AI 大模型互动式对话会话",
     "LLM model Provider": "大模型提供商",
