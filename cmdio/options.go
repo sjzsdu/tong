@@ -1,42 +1,14 @@
 package cmdio
 
 import (
-	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/helper/renders"
 )
 
-// InteractiveSession 交互式会话结构体
-type InteractiveSession struct {
-	Processor    InteractiveProcessor // 改为公开字段，方便测试
-	renderer     renders.Renderer
-	welcome      string
-	tips         []string
-	prompt       string
-	exitCommands []string
-}
+// 函数类型定义，用于依赖注入
+type InputStringFunc func(string) (string, error)
+type ShowLoadingAnimationFunc func(chan bool)
 
-// SessionOption 会话选项函数类型
-type SessionOption func(*InteractiveSession)
-
-// NewInteractiveSession 创建新的交互式会话
-func NewInteractiveSession(processor InteractiveProcessor, opts ...SessionOption) *InteractiveSession {
-	// 默认选项
-	options := &InteractiveSession{
-		Processor:    processor,
-		renderer:     helper.GetDefaultRenderer(),
-		welcome:      "",
-		tips:         []string{},
-		prompt:       "> ",
-		exitCommands: []string{"quit", "q", "exit"},
-	}
-
-	// 应用函数式选项
-	for _, opt := range opts {
-		opt(options)
-	}
-
-	return options
-}
+// 这个文件包含 InteractiveSession 的选项函数
 
 // WithRenderer 设置渲染器
 func WithRenderer(renderer renders.Renderer) SessionOption {
@@ -67,6 +39,13 @@ func WithTips(tips ...string) SessionOption {
 }
 
 // WithPrompt 设置命令提示符
+func WithStream(stream bool) SessionOption {
+	return func(opts *InteractiveSession) {
+		opts.stream = stream
+	}
+}
+
+// WithPrompt 设置命令提示符
 func WithPrompt(prompt string) SessionOption {
 	return func(opts *InteractiveSession) {
 		opts.prompt = prompt
@@ -77,5 +56,19 @@ func WithPrompt(prompt string) SessionOption {
 func WithExitCommands(commands ...string) SessionOption {
 	return func(opts *InteractiveSession) {
 		opts.exitCommands = commands
+	}
+}
+
+// WithInputStringFunc 注入自定义的输入函数，用于测试
+func WithInputStringFunc(fn InputStringFunc) SessionOption {
+	return func(opts *InteractiveSession) {
+		opts.inputStringFunc = fn
+	}
+}
+
+// WithShowLoadingAnimationFunc 注入自定义的加载动画函数，用于测试
+func WithShowLoadingAnimationFunc(fn ShowLoadingAnimationFunc) SessionOption {
+	return func(opts *InteractiveSession) {
+		opts.showLoadingAnimationFunc = fn
 	}
 }

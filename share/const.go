@@ -20,6 +20,6 @@ const CACHE_TYPE = "json"
 
 const NOT_PROGRAM_TIP = "This is not a program file."
 
-const DEFAULT_RENDERER = "markdown"
+const DEFAULT_RENDERER = "text"
 
 const SERVER_PORT = 3000
