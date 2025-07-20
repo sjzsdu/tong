@@ -1,8 +1,7 @@
-package cmdio
+package processors
 
 import (
 	"context"
-	"io"
 	"sync"
 	"time"
 )
@@ -25,7 +24,7 @@ type StreamProcessor struct {
 }
 
 // NewStreamProcessor 创建一个新的流式处理器
-func NewStreamProcessor(config ProcessorConfig, processFunc func(ctx context.Context, input string) (string, error)) *StreamProcessor {
+func NewStreamProcessor(config ProcessorConfig, processFunc ProcessFunc) *StreamProcessor {
 	if config.Mode != StreamMode {
 		config.Mode = StreamMode
 	}
@@ -151,8 +150,6 @@ func (p *StreamProcessor) ProcessOutput(ctx context.Context) error {
 	}
 }
 
-// 实现自定义的流式处理器，用于实际场景
-
 // StreamWriter 流式写入器，实现io.Writer接口
 type StreamWriter struct {
 	outputCh chan<- string
@@ -173,13 +170,13 @@ func (w *StreamWriter) Write(p []byte) (n int, err error) {
 type CustomStreamProcessor struct {
 	*StreamProcessor
 	// 自定义处理函数
-	customProcessFunc func(ctx context.Context, input string, writer io.Writer) error
+	customProcessFunc CustomStreamProcessFunc
 }
 
 // NewCustomStreamProcessor 创建一个新的自定义流式处理器
-func NewCustomStreamProcessor(config ProcessorConfig, processFunc func(ctx context.Context, input string, writer io.Writer) error) *CustomStreamProcessor {
+func NewCustomStreamProcessor(config ProcessorConfig, processFunc CustomStreamProcessFunc) *CustomStreamProcessor {
 	sp := &CustomStreamProcessor{
-		StreamProcessor:    NewStreamProcessor(config, nil),
+		StreamProcessor:   NewStreamProcessor(config, nil),
 		customProcessFunc: processFunc,
 	}
 

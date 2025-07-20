@@ -1,4 +1,4 @@
-package cmdio
+package processors
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-// BaseProcessor 提供处理器的基础实现
+// BaseProcessor 基础处理器，提供共享功能
 type BaseProcessor struct {
 	// 配置信息
 	config ProcessorConfig
@@ -15,11 +15,11 @@ type BaseProcessor struct {
 	// 互斥锁，保护数据访问
 	mu sync.Mutex
 	// 处理函数，由具体实现提供
-	processFunc func(ctx context.Context, input string) (string, error)
+	processFunc ProcessFunc
 }
 
 // NewBaseProcessor 创建一个新的基础处理器
-func NewBaseProcessor(config ProcessorConfig, processFunc func(ctx context.Context, input string) (string, error)) *BaseProcessor {
+func NewBaseProcessor(config ProcessorConfig, processFunc ProcessFunc) *BaseProcessor {
 	return &BaseProcessor{
 		config:      config,
 		processFunc: processFunc,
@@ -37,6 +37,13 @@ func (p *BaseProcessor) SetOutputWriter(writer io.Writer) {
 // GetConfig 获取处理器配置
 func (p *BaseProcessor) GetConfig() ProcessorConfig {
 	return p.config
+}
+
+// SetConfig 设置处理器配置
+func (p *BaseProcessor) SetConfig(config ProcessorConfig) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.config = config
 }
 
 // writeOutput 写入输出内容

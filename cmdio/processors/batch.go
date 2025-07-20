@@ -1,4 +1,4 @@
-package cmdio
+package processors
 
 import (
 	"context"
@@ -20,7 +20,7 @@ type BatchProcessor struct {
 }
 
 // NewBatchProcessor 创建一个新的批量处理器
-func NewBatchProcessor(config ProcessorConfig, processFunc func(ctx context.Context, input string) (string, error)) *BatchProcessor {
+func NewBatchProcessor(config ProcessorConfig, processFunc ProcessFunc) *BatchProcessor {
 	if config.Mode != BatchMode {
 		config.Mode = BatchMode
 	}

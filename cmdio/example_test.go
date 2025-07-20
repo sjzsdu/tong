@@ -12,8 +12,8 @@ import (
 	"github.com/sjzsdu/tong/helper"
 )
 
-// ExampleBatchProcessor 展示如何使用批量处理器
-func ExampleBatchProcessor() {
+// ExampleNewEchoProcessor 展示如何使用批量处理器
+func ExampleNewEchoProcessor() {
 	// 创建一个回显处理器
 	processor := cmdio.NewEchoProcessor()
 
@@ -43,8 +43,8 @@ func ExampleBatchProcessor() {
 	}
 }
 
-// ExampleStreamProcessor 展示如何使用流式处理器
-func ExampleStreamProcessor() {
+// ExampleNewStreamEchoProcessor 展示如何使用流式处理器
+func ExampleNewStreamEchoProcessor() {
 	// 创建一个流式回显处理器
 	processor := cmdio.NewStreamEchoProcessor()
 
@@ -74,8 +74,8 @@ func ExampleStreamProcessor() {
 	}
 }
 
-// ExampleDelayedProcessor 展示如何使用延迟处理器
-func ExampleDelayedProcessor() {
+// ExampleNewDelayedProcessor 展示如何使用延迟处理器
+func ExampleNewDelayedProcessor() {
 	// 创建一个延迟处理器
 	processor := cmdio.NewDelayedProcessor(time.Second*3, cmdio.BatchMode)
 

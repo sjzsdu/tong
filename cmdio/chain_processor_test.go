@@ -10,8 +10,8 @@ import (
 	"github.com/tmc/langchaingo/memory"
 )
 
-// ExampleChainProcessor 展示如何使用批量处理器
-func ExampleChainProcessor() {
+// ExampleNewChainProcessor 展示如何使用批量处理器
+func ExampleNewChainProcessor() {
 	// 初始化 LLM
 	llm, err := llms.CreateLLM(llms.DeepSeekLLM, nil)
 	if err != nil {
@@ -25,9 +25,7 @@ func ExampleChainProcessor() {
 	chain := chains.NewConversation(llm, chatMemory)
 
 	// 创建批量处理器
-	config := DefaultProcessorConfig()
-	config.Mode = BatchMode
-	processor := NewChainProcessor(chain, config)
+	processor := NewChainProcessor(chain)
 
 	// 创建模拟交互式会话，使用预定义的输入
 	mockInputs := []string{"quit"} // 只有一个退出命令，避免实际调用 LLM
@@ -67,9 +65,7 @@ func ExampleNewStreamChainProcessor() {
 	chain := chains.NewConversation(llm, chatMemory)
 
 	// 创建流式处理器
-	config := DefaultProcessorConfig()
-	config.Mode = StreamMode
-	processor := NewStreamChainProcessor(chain, config)
+	processor := NewStreamChainProcessor(chain)
 
 	// 创建模拟交互式会话，使用预定义的输入
 	mockInputs := []string{"quit"} // 只有一个退出命令，避免实际调用 LLM

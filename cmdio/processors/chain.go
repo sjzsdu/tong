@@ -1,4 +1,4 @@
-package cmdio
+package processors
 
 import (
 	"context"
@@ -16,7 +16,11 @@ type ChainProcessor struct {
 }
 
 // NewChainProcessor 创建一个新的 Chain 处理器
-func NewChainProcessor(chain chains.Chain, config ProcessorConfig) *ChainProcessor {
+func NewChainProcessor(chain chains.Chain) *ChainProcessor {
+	// 使用批量模式配置
+	config := DefaultProcessorConfig()
+	config.Mode = BatchMode
+
 	processor := &ChainProcessor{
 		chain: chain,
 	}
@@ -55,8 +59,9 @@ func (p *ChainProcessor) ProcessOutput(ctx context.Context) error {
 }
 
 // NewStreamChainProcessor 创建一个新的流式 Chain 处理器
-func NewStreamChainProcessor(chain chains.Chain, config ProcessorConfig) *CustomStreamProcessor {
-	// 确保配置为流式模式
+func NewStreamChainProcessor(chain chains.Chain) *CustomStreamProcessor {
+	// 使用流式模式配置
+	config := DefaultProcessorConfig()
 	config.Mode = StreamMode
 
 	// 创建自定义处理函数
@@ -72,26 +77,4 @@ func NewStreamChainProcessor(chain chains.Chain, config ProcessorConfig) *Custom
 	}
 
 	return NewCustomStreamProcessor(config, processFunc)
-}
-
-// CreateChatAdapter 创建一个聊天适配器，将 chain 转换为 InteractiveSession
-func CreateChatAdapter(chain chains.Chain, streamMode bool) *InteractiveSession {
-	var processor InteractiveProcessor
-	config := DefaultProcessorConfig()
-
-	if streamMode {
-		config.Mode = StreamMode
-		processor = NewStreamChainProcessor(chain, config)
-	} else {
-		config.Mode = BatchMode
-		processor = NewChainProcessor(chain, config)
-	}
-
-	return NewInteractiveSession(
-		processor,
-		WithWelcome("欢迎使用 AI 聊天助手！输入 'quit' 退出。"),
-		WithTip("提示：您可以询问任何问题，AI 将尽力回答。"),
-		WithPrompt(">"),
-		WithExitCommands("quit", "exit", "q", "退出"),
-	)
 }

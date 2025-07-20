@@ -1,4 +1,4 @@
-package cmdio
+package processors
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 
 // EchoProcessor 简单的回显处理器，将输入回显给用户
 type EchoProcessor struct {
-	*BaseProcessor
+	*BatchProcessor
 }
 
 // NewEchoProcessor 创建一个新的回显处理器
@@ -25,29 +25,13 @@ func NewEchoProcessor() *EchoProcessor {
 	}
 
 	return &EchoProcessor{
-		BaseProcessor: NewBaseProcessor(config, processFunc),
+		BatchProcessor: NewBatchProcessor(config, processFunc),
 	}
-}
-
-// ProcessInput 处理输入
-func (p *EchoProcessor) ProcessInput(ctx context.Context, input string) error {
-	// 创建批量处理器
-	batchProcessor := NewBatchProcessor(p.config, p.processFunc)
-	batchProcessor.SetOutputWriter(p.writer)
-	return batchProcessor.ProcessInput(ctx, input)
-}
-
-// ProcessOutput 处理输出
-func (p *EchoProcessor) ProcessOutput(ctx context.Context) error {
-	// 创建批量处理器
-	batchProcessor := NewBatchProcessor(p.config, p.processFunc)
-	batchProcessor.SetOutputWriter(p.writer)
-	return batchProcessor.ProcessOutput(ctx)
 }
 
 // StreamEchoProcessor 流式回显处理器，将输入逐字符回显给用户
 type StreamEchoProcessor struct {
-	*BaseProcessor
+	*CustomStreamProcessor
 }
 
 // NewStreamEchoProcessor 创建一个新的流式回显处理器
@@ -56,19 +40,7 @@ func NewStreamEchoProcessor() *StreamEchoProcessor {
 	config.Mode = StreamMode
 	config.StreamInterval = time.Millisecond * 50
 
-	processFunc := func(ctx context.Context, input string) (string, error) {
-		// 这个函数在流式处理器中不会被直接使用
-		return input, nil
-	}
-
-	return &StreamEchoProcessor{
-		BaseProcessor: NewBaseProcessor(config, processFunc),
-	}
-}
-
-// ProcessInput 处理输入
-func (p *StreamEchoProcessor) ProcessInput(ctx context.Context, input string) error {
-	// 创建自定义流式处理器
+	// 创建自定义流式处理函数
 	customProcessFunc := func(ctx context.Context, input string, writer io.Writer) error {
 		// 添加前缀
 		response := fmt.Sprintf("你输入了: %s\n\n字符逐个显示:\n", input)
@@ -81,7 +53,7 @@ func (p *StreamEchoProcessor) ProcessInput(ctx context.Context, input string) er
 				return ctx.Err()
 			default:
 				writer.Write([]byte(string(char)))
-				time.Sleep(p.config.StreamInterval)
+				time.Sleep(config.StreamInterval)
 			}
 		}
 
@@ -90,17 +62,9 @@ func (p *StreamEchoProcessor) ProcessInput(ctx context.Context, input string) er
 		return nil
 	}
 
-	streamProcessor := NewCustomStreamProcessor(p.config, customProcessFunc)
-	streamProcessor.SetOutputWriter(p.writer)
-	return streamProcessor.ProcessInput(ctx, input)
-}
-
-// ProcessOutput 处理输出
-func (p *StreamEchoProcessor) ProcessOutput(ctx context.Context) error {
-	// 创建流式处理器
-	streamProcessor := NewStreamProcessor(p.config, p.processFunc)
-	streamProcessor.SetOutputWriter(p.writer)
-	return streamProcessor.ProcessOutput(ctx)
+	return &StreamEchoProcessor{
+		CustomStreamProcessor: NewCustomStreamProcessor(config, customProcessFunc),
+	}
 }
 
 // DelayedProcessor 延迟处理器，模拟长时间处理

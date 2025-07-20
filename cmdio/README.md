@@ -1,186 +1,241 @@
-# 通用命令行交互模块
+# cmdio - 命令行交互式处理模块
 
-这个模块提供了一套通用的命令行交互功能，可以快速构建各种类型的交互式命令行程序。
+`cmdio` 是一个高度抽象和可扩展的命令行交互式处理模块，提供了批量处理和流式处理两种模式，可以轻松构建各种类型的交互式命令行应用程序。
 
-## 主要特性
+## 核心特性
 
-- **输入处理**: 支持自定义输入预处理逻辑
-- **输出处理**: 支持普通输出和流式输出
-- **命令管理**: 支持特殊命令和退出命令的自定义
-- **会话管理**: 统一的会话启动和生命周期管理
-- **错误处理**: 完善的错误处理和上下文取消支持
-- **可扩展性**: 基于接口设计，易于扩展和自定义
+- **多种处理模式**：支持批量处理和流式处理两种模式
+- **高度抽象**：基于接口设计，易于扩展和自定义
+- **灵活配置**：使用函数式选项模式进行配置
+- **完善的错误处理**：支持超时、取消和错误传播
+- **LLM 集成**：内置与 langchaingo 的集成支持
 
-## 核心接口
+## 核心组件
 
-### CommandProcessor 接口
+### 处理器接口
 
-所有命令处理器都需要实现这个接口：
+所有处理器都实现了 `InteractiveProcessor` 接口：
 
 ```go
-type CommandProcessor interface {
-    ProcessCommand(ctx context.Context, input string) error
-    GetPrompt() string
-    IsExitCommand(input string) bool
-    HandleSpecialCommand(ctx context.Context, input string) (bool, error)
+type InteractiveProcessor interface {
+	// 处理输入
+	ProcessInput(ctx context.Context, input string) error
+	// 处理输出
+	ProcessOutput(ctx context.Context) error
+	// 设置输出写入器
+	SetOutputWriter(writer io.Writer)
+	// 获取处理器配置
+	GetConfig() ProcessorConfig
+	// 设置处理器配置
+	SetConfig(config ProcessorConfig)
 }
 ```
 
-### StreamProcessor 接口
+### 处理器类型
 
-用于流式处理：
+#### 基础处理器
 
-```go
-type StreamProcessor interface {
-    ProcessStream(ctx context.Context, callback func(content string, done bool) error) error
-}
-```
+- `BaseProcessor`：所有处理器的基础，提供共享功能
 
-## 内置处理器
+#### 批量处理器
 
-### 1. InputOutputProcessor
+- `BatchProcessor`：等待处理完成后一次性返回所有结果
+- `ChainProcessor`：将 langchaingo 的 chain 适配为批量处理器
+- `EchoProcessor`：简单的回显处理器，用于测试和示例
 
-最灵活的处理器，支持自定义输入和输出处理逻辑：
+#### 流式处理器
 
-```go
-processor := NewInputOutputProcessor().
-    SetPrompt("myapp> ").
-    SetInputHandler(func(input string) (string, error) {
-        // 输入预处理
-        return strings.ToUpper(input), nil
-    }).
-    SetOutputHandler(func(ctx context.Context, input string) (string, error) {
-        // 处理命令并返回输出
-        return fmt.Sprintf("处理结果: %s", input), nil
-    }).
-    AddSpecialCommand("help", func(ctx context.Context) error {
-        fmt.Println("帮助信息")
-        return nil
-    })
-```
+- `StreamProcessor`：在处理过程中不断返回部分结果
+- `CustomStreamProcessor`：支持自定义流式处理函数
+- `StreamEchoProcessor`：流式回显处理器，用于测试和示例
 
-### 2. SimpleCommandProcessor
+### 交互式会话
 
-基于命令的处理器，适合构建命令行工具：
+- `InteractiveSession`：管理交互式会话的生命周期
+- `MockInteractiveSession`：用于测试的模拟会话
+
+## 使用示例
+
+### 创建批量处理器
 
 ```go
-processor := NewSimpleCommandProcessor().
-    AddCommand("greet", func(ctx context.Context, args string) error {
-        fmt.Printf("Hello, %s!\n", args)
-        return nil
-    }).
-    AddCommand("calc", func(ctx context.Context, args string) error {
-        // 计算逻辑
-        return nil
-    })
-```
+// 创建一个简单的批量处理器
+processor := cmdio.NewBatchProcessor(func(ctx context.Context, input string) (string, error) {
+    return "处理结果: " + input, nil
+})
 
-### 3. 自定义处理器
+// 创建交互式会话
+session := cmdio.NewInteractiveSession(
+    processor,
+    cmdio.WithWelcome("欢迎使用批量处理器示例"),
+    cmdio.WithTip("输入文本将被处理"),
+    cmdio.WithTip("输入 'quit' 退出"),
+)
 
-可以实现 `CommandProcessor` 接口来创建完全自定义的处理器。
-
-## 使用方法
-
-### 基本使用
-
-```go
-// 1. 创建命令处理器
-processor := NewInputOutputProcessor().
-    SetOutputHandler(func(ctx context.Context, input string) (string, error) {
-        return "Echo: " + input, nil
-    })
-
-// 2. 创建交互会话
-session := NewInteractiveSession(processor, nil).
-    SetWelcome("欢迎使用我的程序!").
-    AddTip("输入 'quit' 退出")
-
-// 3. 启动会话
+// 启动会话
 ctx := context.Background()
 session.Start(ctx)
 ```
 
-### 流式处理
+### 创建流式处理器
 
 ```go
-processor := NewInputOutputProcessor().
-    SetStreamHandler(func(ctx context.Context, input string, callback func(content string, done bool) error) error {
-        words := strings.Fields(input)
-        for _, word := range words {
-            callback(word+" ", false) // 流式输出
-            time.Sleep(100 * time.Millisecond)
-        }
-        return callback("", true) // 标记完成
-    })
+// 创建一个流式处理器
+processor := cmdio.NewStreamProcessor(func(ctx context.Context, input string) (string, error) {
+    return "流式处理结果: " + input, nil
+})
+
+// 创建交互式会话
+session := cmdio.NewInteractiveSession(
+    processor,
+    cmdio.WithWelcome("欢迎使用流式处理器示例"),
+    cmdio.WithTip("输入文本将被流式处理"),
+    cmdio.WithTip("输入 'quit' 退出"),
+)
+
+// 启动会话
+ctx := context.Background()
+session.Start(ctx)
 ```
 
-### 带加载动画的流式处理
+### 创建自定义流式处理器
 
 ```go
-// 使用内置的带加载动画的流式处理
-err := ProcessStreamWithLoading(ctx, streamProcessor, renderer)
+// 创建一个自定义流式处理器
+processor := cmdio.NewCustomStreamProcessor(func(ctx context.Context, input string, writer io.Writer) error {
+    // 添加前缀
+    writer.Write([]byte("开始处理: " + input + "\n"))
+    
+    // 逐字符输出，模拟流式响应
+    for _, char := range input {
+        select {
+        case <-ctx.Done():
+            return ctx.Err()
+        default:
+            writer.Write([]byte(string(char)))
+            time.Sleep(50 * time.Millisecond)
+        }
+    }
+    
+    // 添加后缀
+    writer.Write([]byte("\n处理完成！"))
+    return nil
+})
+
+// 创建交互式会话
+session := cmdio.NewInteractiveSession(
+    processor,
+    cmdio.WithWelcome("欢迎使用自定义流式处理器示例"),
+    cmdio.WithTip("输入文本将被逐字符处理"),
+    cmdio.WithTip("输入 'quit' 退出"),
+)
+
+// 启动会话
+ctx := context.Background()
+session.Start(ctx)
+```
+
+### 与 langchaingo 集成
+
+```go
+// 初始化 LLM
+llm, err := llms.CreateLLM(llms.DeepSeekLLM, nil)
+if err != nil {
+    log.Fatal(err)
+}
+
+// 创建对话记忆
+chatMemory := memory.NewConversationBuffer()
+
+// 创建对话链
+chain := chains.NewConversation(llm, chatMemory)
+
+// 创建流式处理器
+processor := cmdio.NewStreamChainProcessor(chain)
+
+// 创建交互式会话
+session := cmdio.NewInteractiveSession(
+    processor,
+    cmdio.WithWelcome("欢迎使用 AI 聊天助手！输入 'quit' 退出。"),
+    cmdio.WithTip("提示：您可以询问任何问题，AI 将尽力回答。"),
+    cmdio.WithPrompt("您: "),
+    cmdio.WithExitCommands("quit", "exit", "q", "退出"),
+)
+
+// 启动会话
+ctx := context.Background()
+session.Start(ctx)
+```
+
+### 使用工厂函数
+
+```go
+// 使用工厂函数创建聊天适配器
+session := cmdio.CreateChatAdapter(chain, true) // true 表示使用流式模式
+
+// 启动会话
+ctx := context.Background()
+session.Start(ctx)
 ```
 
 ## 配置选项
 
-### InteractiveSession 配置
+### 处理器配置
 
-- `SetWelcome(string)`: 设置欢迎信息
-- `AddTip(string)`: 添加提示信息
-- `SetDebug(bool)`: 设置调试模式
+```go
+config := cmdio.DefaultProcessorConfig()
+config.Mode = cmdio.StreamMode        // 设置处理模式
+config.Timeout = time.Second * 30     // 设置超时时间
+config.MaxWaitTime = time.Second * 60 // 设置最大等待时间
+config.StreamInterval = time.Millisecond * 50 // 设置流式间隔
+```
 
-### InputOutputProcessor 配置
+### 会话配置
 
-- `SetPrompt(string)`: 设置命令提示符
-- `SetInputHandler(func)`: 设置输入预处理器
-- `SetOutputHandler(func)`: 设置输出处理器
-- `SetStreamHandler(func)`: 设置流式处理器
-- `AddSpecialCommand(string, func)`: 添加特殊命令
-- `SetExitCommands([]string)`: 设置退出命令列表
+```go
+session := cmdio.NewInteractiveSession(
+    processor,
+    cmdio.WithRenderer(renderer),           // 设置渲染器
+    cmdio.WithWelcome("欢迎使用"),           // 设置欢迎信息
+    cmdio.WithTip("这是一个提示"),           // 添加提示信息
+    cmdio.WithTips("提示1", "提示2"),       // 添加多个提示信息
+    cmdio.WithPrompt("命令> "),             // 设置命令提示符
+    cmdio.WithExitCommands("quit", "exit"), // 设置退出命令
+)
+```
 
-## 错误处理
+## 设计理念
 
-模块内置了完善的错误处理机制：
+### 抽象与分层
 
-- 自动处理上下文取消 (`context.Canceled`)
-- 超时处理 (`context.DeadlineExceeded`)
-- 流式错误处理
-- 用户友好的错误消息
+- **接口抽象**：通过接口定义行为，实现解耦
+- **基础组件**：提供基础功能，可被扩展和组合
+- **专用实现**：针对特定场景的优化实现
 
-## 示例
+### 函数式选项模式
 
-详细的使用示例请参考 `examples.go` 文件，包含：
+使用函数式选项模式进行配置，提供灵活且类型安全的配置方式。
 
-1. 简单回显程序
-2. 命令行工具
-3. 流式处理器
-4. 自定义处理器（数据管理工具）
+### 错误处理
+
+- 统一的错误处理机制
+- 支持上下文取消和超时
+- 友好的错误提示
 
 ## 扩展
 
+### 自定义处理器
+
+实现 `InteractiveProcessor` 接口来创建自定义处理器。
+
 ### 自定义渲染器
 
-实现 `renders.Renderer` 接口：
-
-```go
-type Renderer interface {
-    WriteStream(content string) error
-    Done()
-}
-```
-
-### 自定义命令处理器
-
-实现 `CommandProcessor` 接口来创建完全自定义的处理逻辑。
+实现 `renders.Renderer` 接口来创建自定义渲染器。
 
 ## 最佳实践
 
-1. **输入验证**: 在 `InputHandler` 中进行输入验证和预处理
-2. **错误处理**: 妥善处理命令执行中的错误
-3. **上下文管理**: 正确使用 `context.Context` 进行取消和超时控制
-4. **用户体验**: 提供清晰的帮助信息和错误提示
-5. **性能考虑**: 对于长时间运行的操作使用流式处理
-
-## 与原有代码的兼容性
-
-这个通用模块完全兼容原有的 Chat 功能，原有的 `StartInteractiveSession` 方法仍然可以正常使用。新的通用功能可以独立使用，也可以与现有功能结合使用。
+1. **选择合适的处理模式**：根据需求选择批量或流式处理
+2. **错误处理**：妥善处理各种错误情况
+3. **资源管理**：正确使用上下文进行资源管理
+4. **用户体验**：提供清晰的提示和反馈
+5. **测试**：使用 `MockInteractiveSession` 进行测试

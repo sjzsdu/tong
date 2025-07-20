@@ -22,7 +22,7 @@ func (w *RendererWriter) Write(p []byte) (n int, err error) {
 	return len(p), err
 }
 
-// SetOutputWriter 设置处理器的输出写入器
+// SetProcessorWriter 设置处理器的输出写入器
 // 如果写入器是渲染器，则使用RendererWriter适配器
 func SetProcessorWriter(processor InteractiveProcessor, writer interface{}) {
 	switch w := writer.(type) {
