@@ -10,8 +10,8 @@ import (
 // ChainProcessor 是一个适配器，将 langchaingo 的 chain 适配为 InteractiveProcessor
 type ChainProcessor struct {
 	*BaseProcessor
-	chain chains.Chain
-	input string
+	chain  chains.Chain
+	input  string
 	result string
 }
 
@@ -61,19 +61,14 @@ func NewStreamChainProcessor(chain chains.Chain, config ProcessorConfig) *Custom
 
 	// 创建自定义处理函数
 	processFunc := func(ctx context.Context, input string, writer io.Writer) error {
-		// 运行 chain
-		result, err := chains.Run(ctx, chain, input)
-		if err != nil {
+		// 运行 chain，使用流式输出函数
+		_, err := chains.Run(ctx, chain, input, chains.WithStreamingFunc(func(ctx context.Context, chunk []byte) error {
+			// 直接将每个流式输出的块写入到 writer
+			_, err := writer.Write(chunk)
 			return err
-		}
+		}))
 
-		// 在测试环境中，直接一次性写入结果，避免模拟流式输出导致的超时
-		_, err = writer.Write([]byte(result))
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return err
 	}
 
 	return NewCustomStreamProcessor(config, processFunc)
@@ -96,7 +91,7 @@ func CreateChatAdapter(chain chains.Chain, streamMode bool) *InteractiveSession 
 		processor,
 		WithWelcome("欢迎使用 AI 聊天助手！输入 'quit' 退出。"),
 		WithTip("提示：您可以询问任何问题，AI 将尽力回答。"),
-		WithPrompt("您: "),
+		WithPrompt(">"),
 		WithExitCommands("quit", "exit", "q", "退出"),
 	)
 }
