@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/lang"
@@ -94,4 +95,22 @@ func buildProjectTreeWithOptions(targetPath string, options helper.WalkDirOption
 		return nil, fmt.Errorf("failed to build project tree: %v", err)
 	}
 	return doc, nil
+}
+
+// IsGitRoot 判断指定路径是否为 git 项目的根目录
+func IsGitRoot() bool {
+	targetPath, err := helper.GetTargetPath(workDir, repoURL)
+	if err != nil {
+		fmt.Printf("failed to get target path: %v\n", err)
+		return false
+	}
+	// 检查 .git 目录是否存在
+	gitDir := filepath.Join(targetPath, ".git")
+	info, err := os.Stat(gitDir)
+	if err != nil {
+		return false
+	}
+	
+	// 确认是目录而不是文件
+	return info.IsDir()
 }

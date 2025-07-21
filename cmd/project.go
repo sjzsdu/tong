@@ -377,6 +377,10 @@ func runproject(cmd *cobra.Command, args []string) {
 
 	case "blame":
 		var filePath string
+		if !IsGitRoot() {
+			fmt.Printf("当前目录不是 Git 项目根目录，无法进行 blame 分析\n")
+			return
+		}
 		if len(args) > 1 {
 			filePath = args[1]
 		}
