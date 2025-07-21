@@ -4,6 +4,7 @@
 
 ## 功能特点
 
+- **多种实现**：支持两种实现方式 - 基于go-git库和基于命令行git命令
 - **统一接口**：通过 `Blame` 方法提供统一的分析入口，自动识别文件、目录和项目
 - **并发分析**：使用 Go 的并发特性，支持高效的并行分析
 - **文件过滤**：内置文件过滤器，可自定义排除不需要分析的文件类型
@@ -13,17 +14,55 @@
 
 ## 使用方法
 
-### 创建GitBlamer实例
+### 创建Blamer实例
+
+#### 使用工厂模式创建Blamer
 
 ```go
 // 创建项目实例
 projectPath := "/path/to/your/git/project"
 p := project.NewProject(projectPath)
 
-// 创建GitBlamer实例
+// 获取可用的blame分析器类型
+blamerTypes := git.GetAvailableBlamerTypes()
+fmt.Println("可用的blame分析器类型:")
+for _, t := range blamerTypes {
+    fmt.Printf("- %s: %s\n", t, git.GetBlamerTypeDescription(t))
+}
+
+// 创建基于go-git库的blame分析器
+libraryBlamer, err := git.NewBlamer(p, git.LibraryBlamer)
+if err != nil {
+    fmt.Printf("创建基于库的blame分析器失败: %v\n", err)
+    return
+}
+
+// 或者创建基于命令行git的blame分析器
+cmdBlamer, err := git.NewBlamer(p, git.CommandBlamer)
+if err != nil {
+    fmt.Printf("创建基于命令行的blame分析器失败: %v\n", err)
+    return
+}
+```
+
+#### 直接创建特定类型的Blamer
+
+```go
+// 创建项目实例
+projectPath := "/path/to/your/git/project"
+p := project.NewProject(projectPath)
+
+// 创建GitBlamer实例（基于go-git库）
 blamer, err := git.NewGitBlamer(p)
 if err != nil {
     fmt.Printf("创建GitBlamer失败: %v\n", err)
+    return
+}
+
+// 或者创建CmdGitBlamer实例（基于命令行git）
+cmdBlamer, err := git.NewCmdGitBlamer(p)
+if err != nil {
+    fmt.Printf("创建CmdGitBlamer失败: %v\n", err)
     return
 }
 ```
@@ -216,15 +255,51 @@ for path, info := range visitor.Results {
 fmt.Printf("总行数: %d\n", totalLines)
 ```
 
+## 实现方式比较
+
+本工具提供了两种不同的实现方式，各有优缺点：
+
+### 基于go-git库的实现 (LibraryBlamer)
+
+- **优点**：
+  - 无需外部依赖，可在任何环境运行
+  - 与项目代码完全集成，无需额外安装
+  - 可以在没有git命令的环境中工作
+
+- **缺点**：
+  - 对于大型仓库可能性能较低
+  - 内存占用可能较高
+  - 某些复杂的git操作支持有限
+
+### 基于命令行git的实现 (CommandBlamer)
+
+- **优点**：
+  - 性能通常更好，特别是对于大型仓库
+  - 内存占用较低
+  - 支持所有git命令行支持的功能和选项
+
+- **缺点**：
+  - 依赖系统安装的git命令
+  - 在某些环境中可能不可用
+  - 需要处理命令行输出解析的复杂性
+
+### 选择建议
+
+- 如果你的应用需要在各种环境中运行，且不能保证git命令可用，选择 **LibraryBlamer**
+- 如果你的应用主要在有git命令的环境中运行，且需要处理大型仓库，选择 **CommandBlamer**
+- 如果性能是关键因素，选择 **CommandBlamer**
+- 如果便携性和无依赖是关键因素，选择 **LibraryBlamer**
+
 ## 设计思路
 
 本工具采用了以下设计思路：
 
 1. **统一接口**：通过 `Blame` 方法提供统一的分析入口，根据路径类型自动选择合适的分析方法
-2. **访问者模式**：使用 `GitBlameVisitor` 实现 `NodeVisitor` 接口，与 `TreeTraverser` 配合进行高效遍历
-3. **并发处理**：利用 Go 的并发特性，通过信号量控制并发数量，平衡性能和资源使用
-4. **错误处理**：采用错误收集而非中断的策略，确保分析过程的稳定性
-5. **可扩展性**：通过接口和自定义过滤器，支持灵活的扩展和定制
+2. **工厂模式**：使用 `NewBlamer` 工厂函数创建不同实现的Blamer实例，隐藏实现细节
+3. **访问者模式**：使用 `GitBlameVisitor` 实现 `NodeVisitor` 接口，与 `TreeTraverser` 配合进行高效遍历
+4. **并发处理**：利用 Go 的并发特性，通过信号量控制并发数量，平衡性能和资源使用
+5. **错误处理**：采用错误收集而非中断的策略，确保分析过程的稳定性
+6. **可扩展性**：通过接口和自定义过滤器，支持灵活的扩展和定制
 
 ## 示例
 

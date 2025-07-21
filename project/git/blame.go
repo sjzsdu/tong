@@ -31,7 +31,7 @@ type LineInfo struct {
 	Content    string    // Line content
 }
 
-// GitBlamer interface for Git blame analyzer
+// GitBlamer 使用go-git库实现的Git blame分析器
 type GitBlamer struct {
 	ShowEmail  bool
 	Project    *project.Project
