@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/sjzsdu/tong/helper"
+	"github.com/sjzsdu/tong/helper/display"
 	"github.com/sjzsdu/tong/lang"
 	"github.com/sjzsdu/tong/project"
 	"github.com/sjzsdu/tong/project/analyzer"
@@ -227,6 +228,7 @@ func searchProject(doc *project.Project, query string) error {
 }
 
 // Git blame 分析
+
 func analyzeBlame(doc *project.Project, filePath string) error {
 	// 创建 Git blame 分析器
 	var blamer git.Blamer
@@ -305,11 +307,17 @@ func analyzeBlame(doc *project.Project, filePath string) error {
 			fmt.Printf("%s: %d 行 (%.2f%%)\n", author, lines, float64(lines)/float64(blameInfo.TotalLines)*100)
 		}
 
+		// 生成作者贡献饼状图（ASCII形式）
+		display.AuthorsPieChart(blameInfo.Authors, blameInfo.TotalLines)
+
 		// 输出日期统计
 		fmt.Println("\n日期统计:")
 		for date, lines := range blameInfo.Dates {
 			fmt.Printf("%s: %d 行\n", date, lines)
 		}
+
+		// 生成日期贡献折线图
+		display.DatesLineChart(blameInfo.Dates)
 	} else {
 		// 多个文件的汇总输出
 		fmt.Printf("\n分析了 %d 个文件\n\n", len(allBlameInfo))
@@ -317,10 +325,15 @@ func analyzeBlame(doc *project.Project, filePath string) error {
 		// 汇总作者贡献
 		totalAuthors := make(map[string]int)
 		totalLines := 0
+		// 汇总日期贡献
+		totalDates := make(map[string]int)
 		for _, blameInfo := range allBlameInfo {
 			totalLines += blameInfo.TotalLines
 			for author, lines := range blameInfo.Authors {
 				totalAuthors[author] += lines
+			}
+			for date, lines := range blameInfo.Dates {
+				totalDates[date] += lines
 			}
 		}
 
@@ -329,6 +342,12 @@ func analyzeBlame(doc *project.Project, filePath string) error {
 			fmt.Printf("%s: %d 行 (%.2f%%)\n", author, lines, float64(lines)/float64(totalLines)*100)
 		}
 		fmt.Printf("\n总代码行数: %d\n", totalLines)
+
+		// 生成作者贡献饼状图（ASCII形式）
+		display.AuthorsPieChart(totalAuthors, totalLines)
+
+		// 生成日期贡献折线图
+		display.DatesLineChart(totalDates)
 	}
 
 	return nil
