@@ -3,7 +3,7 @@ package share
 import "time"
 
 // VERSION 版本号
-const VERSION = "1.0.0"
+const VERSION = "1.0.1"
 
 // BUILDNAME 制品名称
 const BUILDNAME = "tong"
@@ -23,3 +23,5 @@ const NOT_PROGRAM_TIP = "This is not a program file."
 const DEFAULT_RENDERER = "text"
 
 const SERVER_PORT = 3000
+
+const SCHEMA_CONFIG_FILE = "tong.json"

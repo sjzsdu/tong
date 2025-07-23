@@ -15,14 +15,6 @@ var configCmd = &cobra.Command{
 	Run:   handleConfigCommand,
 }
 
-var (
-	configOptions = map[string]string{
-		"lang":        "Set language",
-		"renderer":    "Set llm response render type",
-	}
-	showAllConfigs bool
-)
-
 func init() {
 	if config.GetConfig("lang") == "" {
 		config.SetConfig("lang", "en")
@@ -35,9 +27,6 @@ func init() {
 	for key, desc := range configOptions {
 		configCmd.Flags().String(key, config.GetConfig(key), lang.T(desc))
 	}
-	
-	// 添加 provider 配置项
-	configCmd.Flags().StringP("provider", "p", config.GetConfig("default_provider"), lang.T("Set default LLM provider"))
 }
 
 func handleConfigCommand(cmd *cobra.Command, args []string) {

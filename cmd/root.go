@@ -12,16 +12,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	workDir         string
-	extensions      []string
-	outputFile      string
-	excludePatterns []string
-	repoURL         string
-	skipGitIgnore   bool
-	debugMode       bool
-)
-
 var RootCmd = rootCmd
 
 var rootCmd = &cobra.Command{
@@ -51,13 +41,6 @@ func Execute() {
 }
 
 func init() {
-	// 确保在初始化时已经加载了语言包
-	rootCmd.PersistentFlags().StringVarP(&workDir, "directory", "d", ".", lang.T("Work directory path"))
-	rootCmd.PersistentFlags().StringSliceVarP(&extensions, "extensions", "e", []string{"*"}, lang.T("File extensions to include"))
-	rootCmd.PersistentFlags().StringVarP(&outputFile, "out", "o", "", lang.T("Output file name"))
-	rootCmd.PersistentFlags().StringSliceVarP(&excludePatterns, "exclude", "x", []string{}, lang.T("Glob patterns to exclude"))
-	rootCmd.PersistentFlags().StringVarP(&repoURL, "repository", "r", "", lang.T("Git repository URL to clone and pack"))
-	rootCmd.PersistentFlags().BoolVarP(&skipGitIgnore, "no-gitignore", "n", false, lang.T("Disable .gitignore rules"))
 	rootCmd.PersistentFlags().BoolVarP(&debugMode, "debug", "v", false, lang.T("Debug mode"))
 	// 设置全局 debug 模式
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
@@ -110,7 +93,7 @@ func IsGitRoot() bool {
 	if err != nil {
 		return false
 	}
-	
+
 	// 确认是目录而不是文件
 	return info.IsDir()
 }

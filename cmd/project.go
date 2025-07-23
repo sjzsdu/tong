@@ -25,6 +25,13 @@ var projectCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(projectCmd)
+
+	projectCmd.PersistentFlags().StringVarP(&workDir, "directory", "d", ".", lang.T("Work directory path"))
+	projectCmd.PersistentFlags().StringSliceVarP(&extensions, "extensions", "e", []string{"*"}, lang.T("File extensions to include"))
+	projectCmd.PersistentFlags().StringVarP(&outputFile, "out", "o", "", lang.T("Output file name"))
+	projectCmd.PersistentFlags().StringSliceVarP(&excludePatterns, "exclude", "x", []string{}, lang.T("Glob patterns to exclude"))
+	projectCmd.PersistentFlags().StringVarP(&repoURL, "repository", "r", "", lang.T("Git repository URL to clone and pack"))
+	projectCmd.PersistentFlags().BoolVarP(&skipGitIgnore, "no-gitignore", "n", false, lang.T("Disable .gitignore rules"))
 }
 
 // createProgressWithCallback 创建进度条和进度回调函数
@@ -233,7 +240,7 @@ func analyzeBlame(doc *project.Project, filePath string) error {
 	// 创建 Git blame 分析器
 	var blamer git.Blamer
 	var err error
-	
+
 	if IsGitRoot() {
 		// 如果是 Git 根目录，使用 LibraryBlamer
 		blamer, err = git.NewGitBlamer(doc)
@@ -241,7 +248,7 @@ func analyzeBlame(doc *project.Project, filePath string) error {
 		// 否则使用命令行方式的 Blamer
 		blamer, err = git.NewCmdGitBlamer(doc)
 	}
-	
+
 	if err != nil {
 		return fmt.Errorf("创建 Git blame 分析器失败: %v", err)
 	}
