@@ -80,7 +80,7 @@ func packProject(doc *project.Project, outputFilePath string) error {
 // 代码分析函数
 func analyzeCode(doc *project.Project) error {
 	// 创建进度条和回调函数
-	progress, progressCallback := createProgressWithCallback("代码分析", doc.GetTotalFiles())
+	progress, progressCallback := createProgressWithCallback("代码分析", doc.GetTotalNodes())
 
 	// 执行分析（使用统一的 Analyze 方法，传入进度回调）
 	analyzer := analyzer.NewDefaultCodeAnalyzer()
@@ -117,7 +117,7 @@ func analyzeCode(doc *project.Project) error {
 // 分析项目依赖关系
 func analyzeDependencies(doc *project.Project) error {
 	// 创建进度条和回调函数
-	progress, progressCallback := createProgressWithCallback("依赖分析", doc.GetTotalFiles())
+	progress, progressCallback := createProgressWithCallback("依赖分析", doc.GetTotalNodes())
 
 	// 使用依赖分析器（使用统一的 AnalyzeDependencies 方法，传入进度回调）
 	depsAnalyzer := analyzer.NewDefaultDependencyAnalyzer()
@@ -147,7 +147,7 @@ func analyzeDependencies(doc *project.Project) error {
 // 分析代码质量
 func analyzeCodeQuality(doc *project.Project) error {
 	// 创建进度条
-	progress := createSimpleProgress("质量分析", doc.GetTotalFiles())
+	progress := createSimpleProgress("质量分析", doc.GetTotalNodes())
 
 	// 使用代码质量分析器
 	qualityAnalyzer := health.NewCodeQualityAnalyzer(doc)
@@ -196,7 +196,7 @@ func analyzeCodeQuality(doc *project.Project) error {
 // 搜索项目代码
 func searchProject(doc *project.Project, query string) error {
 	// 创建进度条
-	progress := createSimpleProgress("搜索索引构建", doc.GetTotalFiles())
+	progress := createSimpleProgress("搜索索引构建", doc.GetTotalNodes())
 
 	// 设置搜索选项
 	options := search.SearchOptions{

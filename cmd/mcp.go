@@ -16,11 +16,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	mcpPort   int
-	showTools bool
-)
-
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
 	Short: lang.T("MCP Server"),

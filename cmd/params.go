@@ -14,4 +14,7 @@ var (
 	}
 	showAllConfigs bool
 	configFile     string
+
+	mcpPort   int
+	showTools bool
 )

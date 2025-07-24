@@ -398,20 +398,3 @@ func (p *Project) Traverse(fn func(node *Node) error) error {
 
 	return traverser.TraverseTree(visitor)
 }
-
-// GetTotalFiles 获取项目中的总文件数（不包括目录）
-func (p *Project) GetTotalFiles() int {
-	if p.root == nil {
-		return 0
-	}
-
-	totalFiles := 0
-	p.Traverse(func(node *Node) error {
-		if !node.IsDir {
-			totalFiles++
-		}
-		return nil
-	})
-
-	return totalFiles
-}
