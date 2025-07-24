@@ -66,7 +66,12 @@ func (s *DefaultSearchEngine) BuildIndex(p *project.Project) error {
 	// 创建访问者函数
 	visitor := project.VisitorFunc(func(path string, node *project.Node, depth int) error {
 		if !node.IsDir {
-			s.fileContent[path] = node.Content
+			// 确保文件内容已加载
+			content, err := node.ReadContent()
+			if err != nil {
+				return fmt.Errorf("无法读取文件 %s 内容: %v", path, err)
+			}
+			s.fileContent[path] = content
 		}
 		return nil
 	})

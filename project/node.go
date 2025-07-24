@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -19,6 +20,10 @@ func (node *Node) CalculateHash() (string, error) {
 
 // calculateFileHash 计算文件内容的哈希值
 func (node *Node) calculateFileHash() (string, error) {
+	// 加读锁保护 Children 访问
+	node.mu.RLock()
+	defer node.mu.RUnlock()
+
 	if node.Content == nil {
 		return "", nil
 	}
@@ -28,19 +33,30 @@ func (node *Node) calculateFileHash() (string, error) {
 
 // calculateDirHash 计算目录的哈希值
 func (node *Node) calculateDirHash() (string, error) {
-	var hashes []string
-	// 先对 Children 按名称排序
-	sortedChildren := make([]*Node, len(node.Children))
-	i := 0
-	for _, child := range node.Children {
-		sortedChildren[i] = child
-		i++
+	// 加读锁保护 Children 访问
+	node.mu.RLock()
+	defer node.mu.RUnlock()
+
+	// 处理空目录情况
+	if len(node.Children) == 0 {
+		// 为空目录返回特定哈希值
+		emptyHash := sha256.Sum256([]byte("empty_dir:" + node.Name))
+		return hex.EncodeToString(emptyHash[:]), nil
 	}
+
+	// 更高效地创建和填充切片
+	sortedChildren := make([]*Node, 0, len(node.Children))
+	for _, child := range node.Children {
+		sortedChildren = append(sortedChildren, child)
+	}
+
+	// 排序保持不变
 	sort.Slice(sortedChildren, func(i, j int) bool {
 		return sortedChildren[i].Name < sortedChildren[j].Name
 	})
 
-	// 使用排序后的切片计算哈希
+	// 计算子节点哈希
+	hashes := make([]string, 0, len(sortedChildren))
 	for _, child := range sortedChildren {
 		hash, err := child.CalculateHash()
 		if err != nil {
@@ -49,6 +65,7 @@ func (node *Node) calculateDirHash() (string, error) {
 		hashes = append(hashes, hash)
 	}
 
+	// 合并哈希值并计算最终哈希
 	combined := []byte(strings.Join(hashes, ""))
 	hash := sha256.Sum256(combined)
 	return hex.EncodeToString(hash[:]), nil
@@ -61,6 +78,11 @@ func (n *Node) CountNodes() int {
 
 	n.mu.RLock()
 	defer n.mu.RUnlock()
+
+	// 如果是根节点且没有子节点，则只计算根节点本身
+	if len(n.Children) == 0 {
+		return 1
+	}
 
 	count := 1 // 当前节点
 	for _, child := range n.Children {
@@ -88,15 +110,48 @@ func (n *Node) GetFiles(basePath string) []string {
 	return files
 }
 
-// Node 中添加的方法
+// ReadContent 读取节点内容，支持延迟加载
 func (n *Node) ReadContent() ([]byte, error) {
 	n.mu.RLock()
-	defer n.mu.RUnlock()
 
 	if n.IsDir {
+		n.mu.RUnlock()
 		return nil, errors.New("cannot read directory")
 	}
 
+	// 如果内容已加载，直接返回
+	if n.ContentLoaded && n.Content != nil {
+		content := n.Content
+		n.mu.RUnlock()
+		return content, nil
+	}
+
+	// 内容未加载，从磁盘读取
+	// 释放读锁，获取写锁
+	n.mu.RUnlock()
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	
+	// 双重检查，防止在锁切换期间其他协程已加载内容
+	if n.ContentLoaded && n.Content != nil {
+		return n.Content, nil
+	}
+	
+	// 检查Path是否有效
+	if n.Path == "" {
+		return nil, errors.New("node path is empty")
+	}
+	
+	// 使用 Path 字段读取文件内容
+	content, err := os.ReadFile(n.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	// 更新节点状态
+	n.Content = content
+	n.ContentLoaded = true
+	
 	return n.Content, nil
 }
 

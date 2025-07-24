@@ -6,34 +6,24 @@ import (
 )
 
 type Node struct {
-	Name     string
-	IsDir    bool
-	modified bool
-	Info     os.FileInfo
-	Content  []byte
-	Children map[string]*Node
-	Parent   *Node
-	mu       sync.RWMutex
+	Name         string
+	Path         string           // 保留Path字段，表示节点在项目中的路径
+	IsDir        bool
+	modified     bool
+	Info         os.FileInfo
+	Content      []byte           // 文件内容
+	ContentLoaded bool            // 标记内容是否已加载
+	Children     map[string]*Node
+	Parent       *Node
+	mu           sync.RWMutex
 }
 
 // Project 表示整个文档树
 type Project struct {
 	root     *Node
 	rootPath string
+	nodes    map[string]*Node
 	mu       sync.RWMutex
-}
-
-type Item struct {
-	Name    string `json:"name"`
-	Feature string `json:"feature"`
-}
-
-type Response struct {
-	Functions    []Item `json:"functions"`
-	Classes      []Item `json:"classes"`
-	Interfaces   []Item `json:"interfaces"`
-	Variables    []Item `json:"variables"`
-	OtherSymbols []Item `json:"other_symbols"`
 }
 
 // VisitorFunc 定义了访问节点的函数类型

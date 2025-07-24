@@ -3,6 +3,7 @@ package analyzer
 import (
 	"bufio"
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -86,6 +87,18 @@ func (d *DefaultCodeAnalyzer) Analyze(p *project.Project, progressCallback ...pr
 
 		// 统计文件
 		stats.TotalFiles++
+
+		// 如果节点内容为空，尝试加载文件内容
+		if len(node.Content) == 0 {
+			// 获取文件的绝对路径
+			absPath := p.GetAbsolutePath(path)
+			// 读取文件内容
+			content, err := os.ReadFile(absPath)
+			if err == nil {
+				node.Content = content
+			}
+		}
+
 		stats.TotalSize += int64(len(node.Content))
 
 		// 获取文件扩展名

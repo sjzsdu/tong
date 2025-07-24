@@ -10,8 +10,9 @@ import (
 
 // TestCodeAnalyzer 测试代码分析器
 func TestCodeAnalyzer(t *testing.T) {
-	// 使用共享项目进行测试
-	goProject := project.GetSharedProject(t, "")
+	// 创建一个示例项目，而不是使用共享项目
+	projectPath := project.CreateExampleGoProject(t)
+	goProject := project.GetSharedProject(t, projectPath)
 	proj := goProject.GetProject()
 
 	// 创建代码分析器

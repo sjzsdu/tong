@@ -31,6 +31,7 @@ type WalkDirOptions struct {
 	DisableGitIgnore bool
 	Extensions       []string
 	Excludes         []string
+	LoadContent      bool      // 是否立即加载文件内容
 }
 
 func WalkDir(root string, callback WalkFunc, filter FilterFunc, options WalkDirOptions) error {

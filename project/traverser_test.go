@@ -112,6 +112,13 @@ func TestProjectWithEmptyDirectory(t *testing.T) {
 	emptyProject, err := BuildProjectTree(tempDir, options)
 	assert.NoError(t, err)
 	assert.NotNil(t, emptyProject)
+
+	// 打印节点信息进行调试
+	t.Logf("根节点: %s, 子节点数: %d", emptyProject.root.Name, len(emptyProject.root.Children))
+	for name, child := range emptyProject.root.Children {
+		t.Logf("子节点: %s, 是否为目录: %v", name, child.IsDir)
+	}
+
 	assert.True(t, emptyProject.IsEmpty())
 
 	// 测试空项目的方法
@@ -120,5 +127,6 @@ func TestProjectWithEmptyDirectory(t *testing.T) {
 	assert.Empty(t, files)
 
 	totalNodes := emptyProject.GetTotalNodes()
+	t.Logf("总节点数: %d", totalNodes)
 	assert.Equal(t, 1, totalNodes) // 只有根节点
 }

@@ -10,31 +10,19 @@ import (
 	"time"
 )
 
-// NewProject 创建一个新的文档树
-func NewProject(rootPath string) *Project {
-	return &Project{
-		root: &Node{
-			Name:     "/",
-			IsDir:    true,
-			Children: make(map[string]*Node),
-		},
-		rootPath: rootPath,
-	}
-}
-
-func (d *Project) GetRootPath() string {
-	return d.rootPath
+func (p *Project) GetRootPath() string {
+	return p.rootPath
 }
 
 // CreateDir 创建一个新目录
-func (d *Project) CreateDir(path string, info os.FileInfo) error {
+func (p *Project) CreateDir(path string, info os.FileInfo) error {
 	if path == "." {
 		return nil
 	}
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	parent, name, err := d.resolvePath(path)
+	parent, name, err := p.resolvePath(path)
 	if err != nil {
 		return err
 	}
@@ -46,23 +34,41 @@ func (d *Project) CreateDir(path string, info os.FileInfo) error {
 		return errors.New("directory already exists")
 	}
 
-	parent.Children[name] = &Node{
+	// 确保路径以 / 开头
+	cleanPath := path
+	if len(cleanPath) > 0 && cleanPath[0] != '/' {
+		cleanPath = "/" + cleanPath
+	}
+
+	// 构建完整路径
+	nodePath := filepath.Join(p.rootPath, cleanPath)
+
+	node := &Node{
 		Name:     name,
+		Path:     nodePath, // 设置完整路径
 		IsDir:    true,
 		Info:     info,
 		Children: make(map[string]*Node),
 		Parent:   parent,
 	}
 
+	parent.Children[name] = node
+
+	// 添加到 nodes 映射中
+	if p.nodes == nil {
+		p.nodes = make(map[string]*Node)
+	}
+	p.nodes[cleanPath] = node
+
 	return nil
 }
 
 // CreateFile 创建一个新文件
-func (d *Project) CreateFile(path string, content []byte, info os.FileInfo) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+func (p *Project) CreateFile(path string, content []byte, info os.FileInfo) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	parent, name, err := d.resolvePath(path)
+	parent, name, err := p.resolvePath(path)
 	if err != nil {
 		return err
 	}
@@ -74,14 +80,33 @@ func (d *Project) CreateFile(path string, content []byte, info os.FileInfo) erro
 		return errors.New("file already exists")
 	}
 
-	parent.Children[name] = &Node{
-		Name:     name,
-		IsDir:    false,
-		Info:     info,
-		Content:  content,
-		Parent:   parent,
-		Children: make(map[string]*Node),
+	// 确保路径以 / 开头
+	cleanPath := path
+	if len(cleanPath) > 0 && cleanPath[0] != '/' {
+		cleanPath = "/" + cleanPath
 	}
+
+	// 构建完整路径
+	nodePath := filepath.Join(p.rootPath, cleanPath)
+
+	node := &Node{
+		Name:          name,
+		Path:          nodePath, // 设置完整路径
+		IsDir:         false,
+		Info:          info,
+		Content:       content,
+		ContentLoaded: true, // 设置内容已加载标志
+		Parent:        parent,
+		Children:      make(map[string]*Node),
+	}
+
+	parent.Children[name] = node
+
+	// 添加到 nodes 映射中
+	if p.nodes == nil {
+		p.nodes = make(map[string]*Node)
+	}
+	p.nodes[cleanPath] = node
 
 	return nil
 }
@@ -195,9 +220,11 @@ func (d *Project) IsEmpty() bool {
 		return true
 	}
 
+	// 检查根节点是否有子节点
 	d.root.mu.RLock()
 	defer d.root.mu.RUnlock()
 
+	// 空目录项目只有根节点，没有子节点
 	return len(d.root.Children) == 0
 }
 
@@ -397,4 +424,99 @@ func (p *Project) Traverse(fn func(node *Node) error) error {
 	})
 
 	return traverser.TraverseTree(visitor)
+}
+
+// CreateFileNode 创建一个新文件节点，但不加载内容
+func (p *Project) CreateFileNode(path string, info os.FileInfo) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	parent, name, err := p.resolvePath(path)
+	if err != nil {
+		return err
+	}
+
+	parent.mu.Lock()
+	defer parent.mu.Unlock()
+
+	if _, exists := parent.Children[name]; exists {
+		return errors.New("file already exists")
+	}
+
+	// 构建完整路径
+	// 确保路径以 / 开头
+	cleanPath := path
+	if len(cleanPath) > 0 && cleanPath[0] != '/' {
+		cleanPath = "/" + cleanPath
+	}
+	absPath := filepath.Join(p.rootPath, cleanPath)
+
+	node := &Node{
+		Name:          name,
+		Path:          absPath,
+		IsDir:         false,
+		Info:          info,
+		ContentLoaded: false,
+		Parent:        parent,
+		Children:      make(map[string]*Node),
+	}
+
+	parent.Children[name] = node
+
+	// 添加到 nodes 映射中
+	if p.nodes == nil {
+		p.nodes = make(map[string]*Node)
+	}
+	// 确保在nodes映射中使用标准化的路径
+	p.nodes[cleanPath] = node
+
+	return nil
+}
+
+// CreateFileWithContent 创建一个新文件节点并加载内容
+func (p *Project) CreateFileWithContent(path string, content []byte, info os.FileInfo) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	parent, name, err := p.resolvePath(path)
+	if err != nil {
+		return err
+	}
+
+	parent.mu.Lock()
+	defer parent.mu.Unlock()
+
+	if _, exists := parent.Children[name]; exists {
+		return errors.New("file already exists")
+	}
+
+	// 确保路径以 / 开头
+	cleanPath := path
+	if len(cleanPath) > 0 && cleanPath[0] != '/' {
+		cleanPath = "/" + cleanPath
+	}
+
+	// 构建完整路径
+	nodePath := filepath.Join(p.rootPath, cleanPath)
+
+	node := &Node{
+		Name:          name,
+		Path:          nodePath,
+		IsDir:         false,
+		Info:          info,
+		Content:       content,
+		ContentLoaded: true,
+		Parent:        parent,
+		Children:      make(map[string]*Node),
+	}
+
+	parent.Children[name] = node
+
+	// 添加到 nodes 映射中
+	if p.nodes == nil {
+		p.nodes = make(map[string]*Node)
+	}
+	p.nodes[cleanPath] = node
+
+	return nil
 }
