@@ -18,3 +18,7 @@ var (
 	mcpPort   int
 	showTools bool
 )
+
+func GetConfig() {
+
+}

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/sjzsdu/langchaingo-cn/llms"
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/share"
 )
@@ -21,9 +22,16 @@ type SchemeConfig struct {
 	AutoApprove   []string `json:"autoApprove,omitempty"`
 }
 
+type LLMConfig struct {
+	Type   llms.LLMType `json:"type"`
+	Params map[string]interface{}
+}
+
 // MCPConfig MCP 配置文件结构
 type MCPConfig struct {
-	MCPServers map[string]SchemeConfig `json:"mcpServers"`
+	MCPServers   map[string]SchemeConfig `json:"mcpServers"`
+	MasterLLM    LLMConfig               `json:"masterLLM"`
+	EmbeddingLLM LLMConfig               `json:"embeddingLLM"`
 }
 
 // LoadMCPConfig 从指定目录加载 MCP 配置

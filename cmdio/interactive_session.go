@@ -109,6 +109,7 @@ func (s *InteractiveSession) Start(ctx context.Context) error {
 
 			if !responseStarted {
 				loadingDone <- true
+				<-loadingDone // 确保加载动画完全结束
 			}
 
 			if err != nil {

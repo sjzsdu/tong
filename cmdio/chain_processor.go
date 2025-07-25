@@ -84,8 +84,8 @@ func (p *ChainProcessor) ProcessInputStream(ctx context.Context, input string, c
 	// 保存最后处理的内容
 	p.lastContent = accumulatedContent
 
-	// 标记处理完成，并传递累积的内容
-	callback(accumulatedContent, true)
+	// 标记处理完成，但不再传递累积的内容，避免重复输出
+	callback("", true)
 	return nil
 }
 

@@ -51,10 +51,4 @@ func runChat(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("会话错误: %v", err)
 	}
-
-	// _, err := GetProject()
-	// if err != nil {
-	// 	fmt.Printf("%v\n", err)
-	// 	return
-	// }
 }
