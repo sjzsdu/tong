@@ -1,0 +1,87 @@
+package cmd
+
+import (
+	"context"
+	"log"
+
+	"github.com/sjzsdu/langchaingo-cn/llms"
+	"github.com/sjzsdu/tong/cmdio"
+	"github.com/sjzsdu/tong/lang"
+	"github.com/sjzsdu/tong/tools"
+	"github.com/spf13/cobra"
+	"github.com/tmc/langchaingo/agents"
+	"github.com/tmc/langchaingo/chains"
+	"github.com/tmc/langchaingo/memory"
+)
+
+var agentCmd = &cobra.Command{
+	Use:   "agent",
+	Short: lang.T("AI Agent"),
+	Long:  lang.T("AI Agent"),
+	Run:   runAgent,
+}
+
+func init() {
+	// 添加streamMode标志
+	agentCmd.Flags().BoolVarP(&streamMode, "stream", "s", true, lang.T("启用流式输出模式"))
+	agentCmd.Flags().StringVarP(&agentType, "type", "t", "conversation", lang.T("Agent type"))
+	agentCmd.Flags().StringVarP(&configFile, "config", "c", "tong.json", lang.T("Config file"))
+	agentCmd.Flags().StringVarP(&workDir, "directory", "d", ".", lang.T("Work directory path"))
+	agentCmd.Flags().StringVarP(&repoURL, "repository", "r", "", lang.T("Git repository URL to clone and pack"))
+
+	rootCmd.AddCommand(agentCmd)
+}
+
+func runAgent(cmd *cobra.Command, args []string) {
+
+	// Initialize LLM
+	llm, err := llms.CreateLLM(llms.DeepSeekLLM, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// 获取配置
+	config, err := GetConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	switch agentType {
+	case "conversation":
+		// 创建基于 SchemeConfig 的工具
+		schemeTools := tools.CreateSchemeTools(config)
+
+		// 创建会话代理
+		ca := agents.NewConversationalAgent(llm, schemeTools)
+
+		// 创建执行器
+		executor := agents.NewExecutor(ca)
+
+		// 创建交互式会话适配器
+		session := cmdio.CreateAgentAdapter(executor, streamMode)
+
+		// 启动交互式会话
+		ctx := context.Background()
+		err = session.Start(ctx)
+		if err != nil {
+			log.Fatalf("会话错误: %v", err)
+		}
+		return
+	}
+
+	// Create conversation memory
+	chatMemory := memory.NewConversationBuffer()
+
+	// Create conversation chain
+	chain := chains.NewConversation(llm, chatMemory)
+
+	// 创建交互式会话适配器，使用命令行标志控制是否开启流式输出模式
+	session := cmdio.CreateChatAdapter(chain, streamMode)
+
+	// 启动交互式会话
+	ctx := context.Background()
+	err = session.Start(ctx)
+	if err != nil {
+		log.Fatalf("会话错误: %v", err)
+	}
+}

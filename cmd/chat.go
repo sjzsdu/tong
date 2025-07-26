@@ -12,9 +12,6 @@ import (
 	"github.com/tmc/langchaingo/memory"
 )
 
-// streamMode 控制是否使用流式输出模式
-var streamMode bool
-
 var chatCmd = &cobra.Command{
 	Use:   "chat",
 	Short: lang.T("Chat to the project"),

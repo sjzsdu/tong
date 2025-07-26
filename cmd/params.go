@@ -8,17 +8,16 @@ var (
 	repoURL         string
 	skipGitIgnore   bool
 	debugMode       bool
-	configOptions   = map[string]string{
+
+	configOptions = map[string]string{
 		"lang":     "Set language",
 		"renderer": "Set llm response render type",
 	}
 	showAllConfigs bool
 	configFile     string
+	streamMode     bool
+	agentType      string
 
 	mcpPort   int
 	showTools bool
 )
-
-func GetConfig() {
-
-}

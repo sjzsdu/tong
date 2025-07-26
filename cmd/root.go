@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/lang"
 	"github.com/sjzsdu/tong/project"
@@ -46,6 +47,20 @@ func init() {
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		share.SetDebug(debugMode)
 	}
+}
+
+func GetConfig() (*config.SchemaConfig, error) {
+	targetPath, err := helper.GetTargetPath(workDir, repoURL)
+	if err != nil {
+		fmt.Printf("failed to get target path: %v\n", err)
+		return nil, err
+	}
+	config, err := config.LoadMCPConfig(targetPath, configFile)
+	if err != nil {
+		fmt.Printf("failed to create schema config: %v\n", err)
+		return nil, err
+	}
+	return config, err
 }
 
 func GetProject() (*project.Project, error) {

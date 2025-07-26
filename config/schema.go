@@ -28,14 +28,14 @@ type LLMConfig struct {
 }
 
 // MCPConfig MCP 配置文件结构
-type MCPConfig struct {
+type SchemaConfig struct {
 	MCPServers   map[string]SchemeConfig `json:"mcpServers"`
 	MasterLLM    LLMConfig               `json:"masterLLM"`
 	EmbeddingLLM LLMConfig               `json:"embeddingLLM"`
 }
 
 // LoadMCPConfig 从指定目录加载 MCP 配置
-func LoadMCPConfig(dir string, file string) (*MCPConfig, error) {
+func LoadMCPConfig(dir string, file string) (*SchemaConfig, error) {
 	var configPath string
 	if file != "" {
 		configPath, _ = helper.GetAbsPath(file)
@@ -53,7 +53,7 @@ func LoadMCPConfig(dir string, file string) (*MCPConfig, error) {
 		return nil, err
 	}
 
-	var config MCPConfig
+	var config SchemaConfig
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func LoadMCPConfig(dir string, file string) (*MCPConfig, error) {
 }
 
 // GetServerConfig 获取指定服务器的配置
-func (c *MCPConfig) GetServerConfig(name string) *SchemeConfig {
+func (c *SchemaConfig) GetServerConfig(name string) *SchemeConfig {
 	if c == nil {
 		return nil
 	}
