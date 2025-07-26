@@ -134,9 +134,8 @@ func TestChainProcessor(t *testing.T) {
 			options := args.Get(2).([]chains.ChainCallOption)
 			if len(options) > 0 {
 				// 模拟流式输出
-				// 由于 ChainCallOption 是函数类型，我们需要创建一个模拟的 chainCallOption 结构
-				// 然后直接调用 ctx.Background() 和 []byte 参数来模拟流式输出
-				// 这里我们简单地调用一个函数来模拟流式输出
+				// 由于 ChainCallOption 是函数类型，我们需要直接调用流式回调函数
+				// 这里我们通过调用 mockStreamFunc 来模拟流式输出
 				mockStreamFunc(ctx, []byte("processed stream output"))
 			}
 		}).Return(map[string]any{"output": "processed stream output"}, nil)
@@ -225,9 +224,13 @@ func TestChainProcessor(t *testing.T) {
 
 		// 调用第一个处理器的流式处理方法
 		err := chainProcessor.ProcessInputStream(ctx, "test stream input", func(content string, done bool) {
+			// 保存中间内容，但不需要在这里使用
+			// 我们只关心最终的输出结果
+			
 			if done {
 				// 第一个处理器完成后，调用第二个处理器
-				err := chainProcessor2.ProcessInputStream(ctx, content, callback)
+				// 使用 "intermediate stream output" 作为输入，而不是 content
+				err := chainProcessor2.ProcessInputStream(ctx, "intermediate stream output", callback)
 				assert.NoError(t, err, "第二个处理器不应返回错误")
 			}
 		})

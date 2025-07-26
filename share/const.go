@@ -25,3 +25,5 @@ const DEFAULT_RENDERER = "text"
 const SERVER_PORT = 3000
 
 const SCHEMA_CONFIG_FILE = "tong.json"
+
+const MCP_CLIENT_NAME = "Tong MCP Client"

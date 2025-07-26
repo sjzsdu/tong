@@ -27,14 +27,21 @@ func NewChainProcessor(chain chains.Chain, streamMode bool) *ChainProcessor {
 // ProcessInput 处理用户输入，非流式模式
 func (p *ChainProcessor) ProcessInput(ctx context.Context, input string) (string, error) {
 	// 使用 chain 处理输入
-	result, err := chains.Run(ctx, p.chain, input)
+	result, err := chains.Call(ctx, p.chain, map[string]any{"input": input})
 	if err != nil {
 		return "", fmt.Errorf(lang.T("处理输入时出错")+": %v", err)
 	}
 
+	// 从结果中获取输出
+	outputKeys := p.chain.GetOutputKeys()
+	var output string
+	if len(outputKeys) > 0 && result[outputKeys[0]] != nil {
+		output = fmt.Sprintf("%v", result[outputKeys[0]])
+	}
+
 	// 保存最后处理的内容
-	p.lastContent = result
-	return result, nil
+	p.lastContent = output
+	return output, nil
 }
 
 // ProcessInputStream 流式处理用户输入
@@ -71,20 +78,29 @@ func (p *ChainProcessor) ProcessInputStream(ctx context.Context, input string, c
 	}
 
 	// 运行 chain
-	result, err := chains.Run(ctx, p.chain, input, options...)
+	result, err := chains.Call(ctx, p.chain, map[string]any{"input": input}, options...)
 	if err != nil {
 		return fmt.Errorf(lang.T("流式处理输入时出错")+": %v", err)
 	}
 
-	// 如果累积内容为空但结果不为空，使用结果
-	if accumulatedContent == "" && result != "" {
-		accumulatedContent = result
+	// 从结果中获取输出
+	outputKeys := p.chain.GetOutputKeys()
+	var output string
+	if len(outputKeys) > 0 && result[outputKeys[0]] != nil {
+		output = fmt.Sprintf("%v", result[outputKeys[0]])
+	}
+
+	// 如果累积内容为空但输出不为空，使用输出
+	if accumulatedContent == "" && output != "" {
+		accumulatedContent = output
+		// 如果之前没有流式输出，但有最终输出，则发送一次
+		callback(output, false)
 	}
 
 	// 保存最后处理的内容
 	p.lastContent = accumulatedContent
 
-	// 标记处理完成，但不再传递累积的内容，避免重复输出
+	// 标记处理完成
 	callback("", true)
 	return nil
 }

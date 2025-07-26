@@ -11,7 +11,7 @@ import (
 )
 
 // MCPServerConfig 单个 MCP 服务器的配置
-type SchemeConfig struct {
+type MCPServerConfig struct {
 	Disabled      bool     `json:"disabled"`
 	Timeout       int      `json:"timeout"`
 	Command       string   `json:"command"`
@@ -29,9 +29,9 @@ type LLMConfig struct {
 
 // MCPConfig MCP 配置文件结构
 type SchemaConfig struct {
-	MCPServers   map[string]SchemeConfig `json:"mcpServers"`
-	MasterLLM    LLMConfig               `json:"masterLLM"`
-	EmbeddingLLM LLMConfig               `json:"embeddingLLM"`
+	MCPServers   map[string]MCPServerConfig `json:"mcpServers"`
+	MasterLLM    LLMConfig                  `json:"masterLLM"`
+	EmbeddingLLM LLMConfig                  `json:"embeddingLLM"`
 }
 
 // LoadMCPConfig 从指定目录加载 MCP 配置
@@ -62,7 +62,7 @@ func LoadMCPConfig(dir string, file string) (*SchemaConfig, error) {
 }
 
 // GetServerConfig 获取指定服务器的配置
-func (c *SchemaConfig) GetServerConfig(name string) *SchemeConfig {
+func (c *SchemaConfig) GetServerConfig(name string) *MCPServerConfig {
 	if c == nil {
 		return nil
 	}

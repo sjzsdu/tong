@@ -7,11 +7,9 @@ import (
 	"github.com/sjzsdu/langchaingo-cn/llms"
 	"github.com/sjzsdu/tong/cmdio"
 	"github.com/sjzsdu/tong/lang"
-	"github.com/sjzsdu/tong/tools"
+	"github.com/sjzsdu/tong/mcp"
 	"github.com/spf13/cobra"
 	"github.com/tmc/langchaingo/agents"
-	"github.com/tmc/langchaingo/chains"
-	"github.com/tmc/langchaingo/memory"
 )
 
 var agentCmd = &cobra.Command{
@@ -46,10 +44,19 @@ func runAgent(cmd *cobra.Command, args []string) {
 		log.Fatal(err)
 	}
 
+	host, err := mcp.NewHost(config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	switch agentType {
 	case "conversation":
+		ctx := context.Background()
 		// 创建基于 SchemeConfig 的工具
-		schemeTools := tools.CreateSchemeTools(config)
+		schemeTools, err := host.GetTools(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		// 创建会话代理
 		ca := agents.NewConversationalAgent(llm, schemeTools)
@@ -61,27 +68,10 @@ func runAgent(cmd *cobra.Command, args []string) {
 		session := cmdio.CreateAgentAdapter(executor, streamMode)
 
 		// 启动交互式会话
-		ctx := context.Background()
 		err = session.Start(ctx)
 		if err != nil {
 			log.Fatalf("会话错误: %v", err)
 		}
 		return
-	}
-
-	// Create conversation memory
-	chatMemory := memory.NewConversationBuffer()
-
-	// Create conversation chain
-	chain := chains.NewConversation(llm, chatMemory)
-
-	// 创建交互式会话适配器，使用命令行标志控制是否开启流式输出模式
-	session := cmdio.CreateChatAdapter(chain, streamMode)
-
-	// 启动交互式会话
-	ctx := context.Background()
-	err = session.Start(ctx)
-	if err != nil {
-		log.Fatalf("会话错误: %v", err)
 	}
 }

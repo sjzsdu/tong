@@ -10,7 +10,7 @@ require (
 	github.com/go-git/go-git/v5 v5.14.0
 	github.com/guptarohit/asciigraph v0.7.3
 	github.com/jung-kurt/gofpdf v1.16.2
-	github.com/mark3labs/mcp-go v0.32.0
+	github.com/mark3labs/mcp-go v0.35.0
 	github.com/nicksnyder/go-i18n/v2 v2.5.1
 	github.com/sjzsdu/langchaingo-cn v1.0.1
 	github.com/spf13/cobra v1.9.1
