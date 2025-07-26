@@ -27,15 +27,22 @@ func NewAgentProcessor(executor *agents.Executor, streamMode bool) *AgentProcess
 
 // ProcessInput 处理用户输入，非流式模式
 func (p *AgentProcessor) ProcessInput(ctx context.Context, input string) (string, error) {
-	// 使用 chains.Run 处理输入
-	result, err := chains.Run(ctx, p.executor, input)
+	// 使用 chains.Call 处理输入
+	result, err := chains.Call(ctx, p.executor, map[string]any{"input": input})
 	if err != nil {
 		return "", fmt.Errorf(lang.T("处理输入时出错")+": %v", err)
 	}
 
+	// 从结果中获取输出
+	outputKeys := p.executor.GetOutputKeys()
+	var output string
+	if len(outputKeys) > 0 && result[outputKeys[0]] != nil {
+		output = fmt.Sprintf("%v", result[outputKeys[0]])
+	}
+
 	// 保存最后处理的内容
-	p.lastContent = result
-	return result, nil
+	p.lastContent = output
+	return output, nil
 }
 
 // ProcessInputStream 流式处理用户输入
@@ -52,6 +59,8 @@ func (p *AgentProcessor) ProcessInputStream(ctx context.Context, input string, c
 
 	// 创建一个累积内容的变量
 	var accumulatedContent string
+	// 标记是否已经通过流式回调输出了内容
+	var streamingDone bool
 
 	// 创建一个流式回调函数
 	streamingFunc := func(ctx context.Context, chunk []byte) error {
@@ -62,6 +71,8 @@ func (p *AgentProcessor) ProcessInputStream(ctx context.Context, input string, c
 			accumulatedContent += content
 			// 回调当前内容片段
 			callback(content, false)
+			// 标记已经输出了内容
+			streamingDone = true
 		}
 		return nil
 	}
@@ -71,21 +82,29 @@ func (p *AgentProcessor) ProcessInputStream(ctx context.Context, input string, c
 		chains.WithStreamingFunc(streamingFunc),
 	}
 
-	// 运行 agent executor 通过 chains.Run
-	result, err := chains.Run(ctx, p.executor, input, options...)
+	// 运行 agent executor 通过 chains.Call
+	result, err := chains.Call(ctx, p.executor, map[string]any{"input": input}, options...)
 	if err != nil {
 		return fmt.Errorf(lang.T("流式处理输入时出错")+": %v", err)
 	}
 
-	// 如果累积内容为空但结果不为空，使用结果
-	if accumulatedContent == "" && result != "" {
-		accumulatedContent = result
+	// 从结果中获取输出
+	outputKeys := p.executor.GetOutputKeys()
+	var output string
+	if len(outputKeys) > 0 && result[outputKeys[0]] != nil {
+		output = fmt.Sprintf("%v", result[outputKeys[0]])
+	}
+
+	// 如果没有通过流式回调输出任何内容，但有最终输出，则发送一次
+	if !streamingDone && output != "" {
+		callback(output, false)
+		accumulatedContent = output
 	}
 
 	// 保存最后处理的内容
 	p.lastContent = accumulatedContent
 
-	// 标记处理完成，但不再传递累积的内容，避免重复输出
+	// 标记处理完成
 	callback("", true)
 	return nil
 }

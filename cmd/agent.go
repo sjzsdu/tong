@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/sjzsdu/langchaingo-cn/llms"
 	"github.com/sjzsdu/tong/cmdio"
 	"github.com/sjzsdu/tong/lang"
 	"github.com/sjzsdu/tong/mcp"
+	"github.com/sjzsdu/tong/share"
 	"github.com/spf13/cobra"
 	"github.com/tmc/langchaingo/agents"
 )
@@ -56,6 +58,15 @@ func runAgent(cmd *cobra.Command, args []string) {
 		schemeTools, err := host.GetTools(ctx)
 		if err != nil {
 			log.Fatal(err)
+		}
+
+		// 打印可用工具列表
+		if share.GetDebug() && len(schemeTools) > 0 {
+			fmt.Println(lang.T("可用工具列表:"))
+			for _, tool := range schemeTools {
+				fmt.Printf("- %s: %s\n", tool.Name(), tool.Description())
+			}
+			fmt.Println()
 		}
 
 		// 创建会话代理

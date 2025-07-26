@@ -1,0 +1,15 @@
+{
+    "mcpServers": {
+        "filesystem": {
+            "disabled": false,
+            "timeout": 60,
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-filesystem",
+                "/Users/juzhongsun/Codes/gos/wn"
+            ],
+            "transportType": "stdio"
+        }
+    }
+}

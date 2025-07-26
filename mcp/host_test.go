@@ -152,13 +152,19 @@ func TestHostGetTools(t *testing.T) {
 	// 验证结果
 	assert.NoError(t, err)
 	assert.NotNil(t, tools)
-	assert.Len(t, tools, 2)
+	// 注意：GetTools 方法会返回 MCP 客户端的工具 + 自定义工具
+	// 自定义工具在 GetCustomTools() 中定义，包括 calculator 和 weather 两个工具
+	assert.Len(t, tools, 4) // 2个测试工具 + 2个自定义工具
 
-	// 验证工具属性
-	for i, tool := range tools {
-		assert.Equal(t, testTools[i].Name, tool.Name())
-		assert.Equal(t, testTools[i].Description, tool.Description())
+	// 验证前两个工具属性（来自 MCP 客户端）
+	for i := 0; i < len(testTools); i++ {
+		assert.Equal(t, testTools[i].Name, tools[i].Name())
+		assert.Equal(t, testTools[i].Description, tools[i].Description())
 	}
+
+	// 验证后两个工具属性（自定义工具）
+	assert.Equal(t, "calculator", tools[2].Name())
+	assert.Equal(t, "weather", tools[3].Name())
 
 	// 验证模拟客户端的方法被调用
 	mockClient.AssertExpectations(t)
