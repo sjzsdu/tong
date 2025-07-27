@@ -104,10 +104,10 @@ func GetCustomTools() []tools.Tool {
 		},
 	)
 
-	// 添加一个天气查询工具（模拟）
+	// 添加一个天气工具
 	weatherTool := NewCustomTool(
 		"weather",
-		"一个天气查询工具，可以查询指定城市的天气。输入格式: {\"args\": {\"city\": \"城市名\"}}",
+		"一个天气查询工具，可以获取指定城市的天气信息。输入格式: {\"args\": {\"city\": string}}",
 		func(ctx context.Context, input string) (string, error) {
 			args, err := ParseToolInput(input)
 			if err != nil {
@@ -119,23 +119,12 @@ func GetCustomTools() []tools.Tool {
 				return "", fmt.Errorf("缺少 'city' 参数或类型错误")
 			}
 
-			// 这里只是模拟，实际应用中应该调用真实的天气 API
-			weatherInfo := map[string]string{
-				"北京":  "晴天，温度 25°C",
-				"上海":  "多云，温度 28°C",
-				"广州":  "小雨，温度 30°C",
-				"深圳":  "阴天，温度 29°C",
-				"成都":  "晴天，温度 26°C",
-			}
-
-			if weather, exists := weatherInfo[city]; exists {
-				return fmt.Sprintf("%s 的天气: %s", city, weather), nil
-			}
-
-			return fmt.Sprintf("没有找到 %s 的天气信息", city), nil
+			// 这里只是一个模拟实现，实际应用中可能需要调用外部天气API
+			return fmt.Sprintf("%s 今天天气晴朗，温度 25°C，湿度 60%%，风力 3 级。", city), nil
 		},
 	)
 
-	customTools = append(customTools, calculatorTool, weatherTool)
+	customTools = append(customTools, calculatorTool)
+	customTools = append(customTools, weatherTool)
 	return customTools
 }

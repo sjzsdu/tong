@@ -30,6 +30,14 @@ func GetConfig(key string) string {
 	return os.Getenv(envKey)
 }
 
+func GetConfigWithDefault(key string, defaultValue string) string {
+	value := GetConfig(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
 func LoadConfig() error {
 	configFile := helper.GetPath("config")
 	file, err := os.Open(configFile)

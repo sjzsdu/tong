@@ -1,0 +1,170 @@
+package config_test
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/sjzsdu/tong/config"
+	"github.com/sjzsdu/tong/share"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestDefaultSchemaConfig(t *testing.T) {
+	// 获取默认配置
+	defaultConfig := config.DefaultSchemaConfig()
+
+	// 验证默认配置不为空
+	assert.NotNil(t, defaultConfig)
+
+	// 验证默认配置中的 MCPServers 不为空
+	assert.NotNil(t, defaultConfig.MCPServers)
+	
+	// 验证默认配置中包含 default 服务器
+	defaultServer, exists := defaultConfig.MCPServers["default"]
+	assert.True(t, exists)
+	assert.False(t, defaultServer.Disabled)
+
+	// 验证 MasterLLM 和 EmbeddingLLM 配置不为空
+	assert.NotEmpty(t, defaultConfig.MasterLLM.Type)
+	assert.NotEmpty(t, defaultConfig.EmbeddingLLM.Type)
+}
+
+func TestLoadMCPConfig(t *testing.T) {
+	// 创建临时目录
+	tmpDir := t.TempDir()
+
+	// 测试无配置文件时返回默认配置
+	t.Run("NoConfigFile", func(t *testing.T) {
+		config, err := config.LoadMCPConfig(tmpDir, "")
+		assert.NoError(t, err)
+		assert.NotNil(t, config)
+		assert.NotNil(t, config.MCPServers)
+		_, exists := config.MCPServers["default"]
+		assert.True(t, exists)
+	})
+
+	// 创建目录配置文件
+	dirConfig := &config.SchemaConfig{
+		MCPServers: map[string]config.MCPServerConfig{
+			"dir_server": {
+				Disabled:      false,
+				Timeout:       120,
+				Command:       "dir_command",
+				TransportType: "stdio",
+			},
+		},
+	}
+	dirConfigPath := filepath.Join(tmpDir, share.SCHEMA_CONFIG_FILE)
+	dirConfigData, _ := json.Marshal(dirConfig)
+	err := os.WriteFile(dirConfigPath, dirConfigData, 0644)
+	assert.NoError(t, err)
+
+	// 测试加载目录配置
+	t.Run("LoadDirConfig", func(t *testing.T) {
+		config, err := config.LoadMCPConfig(tmpDir, "")
+		assert.NoError(t, err)
+		assert.NotNil(t, config)
+
+		// 验证目录配置已加载
+		dirServer, exists := config.MCPServers["dir_server"]
+		assert.True(t, exists)
+		assert.Equal(t, "dir_command", dirServer.Command)
+		assert.Equal(t, 120, dirServer.Timeout)
+
+		// 验证默认配置仍然存在
+		_, exists = config.MCPServers["default"]
+		assert.True(t, exists)
+	})
+
+	// 创建文件配置
+	fileConfig := &config.SchemaConfig{
+		MCPServers: map[string]config.MCPServerConfig{
+			"file_server": {
+				Disabled:      false,
+				Timeout:       180,
+				Command:       "file_command",
+				TransportType: "sse",
+				Url:           "http://localhost:8080",
+			},
+			// 覆盖目录配置中的服务器
+			"dir_server": {
+				Disabled:      true,
+				Timeout:       60,
+				Command:       "overridden_command",
+				TransportType: "stdio",
+			},
+		},
+	}
+	fileConfigPath := filepath.Join(tmpDir, "file_config.json")
+	fileConfigData, _ := json.Marshal(fileConfig)
+	err = os.WriteFile(fileConfigPath, fileConfigData, 0644)
+	assert.NoError(t, err)
+
+	// 测试同时加载目录和文件配置，文件配置优先级更高
+	t.Run("LoadBothConfigs", func(t *testing.T) {
+		config, err := config.LoadMCPConfig(tmpDir, fileConfigPath)
+		assert.NoError(t, err)
+		assert.NotNil(t, config)
+
+		// 验证文件配置已加载
+		fileServer, exists := config.MCPServers["file_server"]
+		assert.True(t, exists)
+		assert.Equal(t, "file_command", fileServer.Command)
+		assert.Equal(t, 180, fileServer.Timeout)
+		assert.Equal(t, "sse", fileServer.TransportType)
+		assert.Equal(t, "http://localhost:8080", fileServer.Url)
+
+		// 验证文件配置覆盖了目录配置
+		dirServer, exists := config.MCPServers["dir_server"]
+		assert.True(t, exists)
+		assert.True(t, dirServer.Disabled) // 被文件配置覆盖为 true
+		assert.Equal(t, "overridden_command", dirServer.Command)
+		assert.Equal(t, 60, dirServer.Timeout)
+
+		// 验证默认配置仍然存在
+		_, exists = config.MCPServers["default"]
+		assert.True(t, exists)
+	})
+}
+
+func TestMergeConfig(t *testing.T) {
+	// 直接测试 MergeConfig 函数
+	target := config.DefaultSchemaConfig()
+	source := &config.SchemaConfig{
+		MCPServers: map[string]config.MCPServerConfig{
+			"new_server": {
+				Disabled:      false,
+				Timeout:       300,
+				Command:       "new_command",
+				TransportType: "sse",
+				Url:           "http://localhost:9000",
+			},
+			"default": { // 覆盖默认服务器
+				Disabled:      true,
+				Timeout:       30,
+				Command:       "overridden_default",
+				TransportType: "stdio",
+			},
+		},
+	}
+
+	// 合并配置
+	config.MergeConfig(target, source)
+
+	// 验证新服务器已添加
+	newServer, exists := target.MCPServers["new_server"]
+	assert.True(t, exists)
+	assert.Equal(t, "new_command", newServer.Command)
+	assert.Equal(t, 300, newServer.Timeout)
+	assert.Equal(t, "sse", newServer.TransportType)
+	assert.Equal(t, "http://localhost:9000", newServer.Url)
+
+	// 验证默认服务器已被覆盖
+	defaultServer, exists := target.MCPServers["default"]
+	assert.True(t, exists)
+	assert.True(t, defaultServer.Disabled)
+	assert.Equal(t, "overridden_default", defaultServer.Command)
+	assert.Equal(t, 30, defaultServer.Timeout)
+}

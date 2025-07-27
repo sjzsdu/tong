@@ -35,30 +35,81 @@ type SchemaConfig struct {
 }
 
 // LoadMCPConfig 从指定目录加载 MCP 配置
+// 如果配置文件不存在，则返回默认配置
+// 如果同时指定了 dir 和 file，则会合并两个配置，file 的配置优先级更高
 func LoadMCPConfig(dir string, file string) (*SchemaConfig, error) {
-	var configPath string
+	// 获取默认配置
+	config := DefaultSchemaConfig()
+
+	// 如果没有指定目录和文件，直接返回默认配置
+	if dir == "" && file == "" {
+		return config, nil
+	}
+
+	// 尝试加载目录中的配置文件
+	if dir != "" {
+		dirConfigPath := filepath.Join(dir, share.SCHEMA_CONFIG_FILE)
+		if _, err := os.Stat(dirConfigPath); err == nil {
+			// 文件存在，读取并合并配置
+			data, err := os.ReadFile(dirConfigPath)
+			if err != nil {
+				return config, err
+			}
+
+			var dirConfig SchemaConfig
+			if err := json.Unmarshal(data, &dirConfig); err != nil {
+				return config, err
+			}
+
+			// 合并配置
+			MergeConfig(config, &dirConfig)
+		}
+	}
+
+	// 如果指定了文件，则加载文件配置并合并（优先级更高）
 	if file != "" {
-		configPath, _ = helper.GetAbsPath(file)
-	} else {
-		configPath = filepath.Join(dir, share.SCHEMA_CONFIG_FILE)
+		filePath, _ := helper.GetAbsPath(file)
+		if _, err := os.Stat(filePath); err == nil {
+			// 文件存在，读取并合并配置
+			data, err := os.ReadFile(filePath)
+			if err != nil {
+				return config, err
+			}
+
+			var fileConfig SchemaConfig
+			if err := json.Unmarshal(data, &fileConfig); err != nil {
+				return config, err
+			}
+
+			// 合并配置，文件配置优先级更高
+			MergeConfig(config, &fileConfig)
+		}
 	}
 
-	// 检查文件是否存在
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return nil, err
+	return config, nil
+}
+
+// MergeConfig 合并两个配置，target 会被 source 中的非空值覆盖
+func MergeConfig(target *SchemaConfig, source *SchemaConfig) {
+	// 合并 MCPServers
+	if source.MCPServers != nil {
+		if target.MCPServers == nil {
+			target.MCPServers = make(map[string]MCPServerConfig)
+		}
+		for name, serverConfig := range source.MCPServers {
+			target.MCPServers[name] = serverConfig
+		}
 	}
 
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, err
+	// 合并 MasterLLM
+	if source.MasterLLM.Type != "" {
+		target.MasterLLM = source.MasterLLM
 	}
 
-	var config SchemaConfig
-	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, err
+	// 合并 EmbeddingLLM
+	if source.EmbeddingLLM.Type != "" {
+		target.EmbeddingLLM = source.EmbeddingLLM
 	}
-
-	return &config, nil
 }
 
 // GetServerConfig 获取指定服务器的配置
@@ -71,4 +122,26 @@ func (c *SchemaConfig) GetServerConfig(name string) *MCPServerConfig {
 		return &config
 	}
 	return nil
+}
+
+// DefaultSchemaConfig 生成默认的 SchemaConfig 配置
+func DefaultSchemaConfig() *SchemaConfig {
+	return &SchemaConfig{
+		MCPServers: map[string]MCPServerConfig{
+			"default": {
+				Disabled:      false,
+				Timeout:       60,
+				Command:       "tong mcp",
+				TransportType: "stdio",
+			},
+		},
+		MasterLLM: LLMConfig{
+			Type:   llms.DeepSeekLLM,
+			Params: map[string]interface{}{},
+		},
+		EmbeddingLLM: LLMConfig{
+			Type:   llms.DeepSeekLLM,
+			Params: map[string]interface{}{},
+		},
+	}
 }

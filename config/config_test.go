@@ -60,6 +60,54 @@ func TestGetConfig(t *testing.T) {
 	}
 }
 
+func TestGetConfigWithDefault(t *testing.T) {
+	// 设置临时测试目录
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	// 清除所有配置
+	config.ClearAllConfig()
+
+	// 设置测试环境变量
+	os.Setenv("TONG_LANG", "zh")
+
+	tests := []struct {
+		name         string
+		key          string
+		defaultValue string
+		expected     string
+	}{
+		{
+			name:         "获取存在的配置",
+			key:          "lang",
+			defaultValue: "en",
+			expected:     "zh",
+		},
+		{
+			name:         "获取不存在的配置，返回默认值",
+			key:          "nonexistent",
+			defaultValue: "default-value",
+			expected:     "default-value",
+		},
+		{
+			name:         "获取空配置，返回默认值",
+			key:          "empty",
+			defaultValue: "default-for-empty",
+			expected:     "default-for-empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := config.GetConfigWithDefault(tt.key, tt.defaultValue); got != tt.expected {
+				t.Errorf("GetConfigWithDefault() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestConfigOperations(t *testing.T) {
 	// 设置临时测试目录
 	tmpDir := t.TempDir()
