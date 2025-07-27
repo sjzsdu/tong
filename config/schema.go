@@ -127,15 +127,7 @@ func (c *SchemaConfig) GetServerConfig(name string) *MCPServerConfig {
 // DefaultSchemaConfig 生成默认的 SchemaConfig 配置
 func DefaultSchemaConfig() *SchemaConfig {
 	return &SchemaConfig{
-		MCPServers: map[string]MCPServerConfig{
-			"default": {
-				Disabled:      false,
-				Timeout:       60,
-				Command:       "tong",
-				Args:          []string{"mcp", "--serve"},
-				TransportType: "stdio",
-			},
-		},
+		MCPServers: map[string]MCPServerConfig{},
 		MasterLLM: LLMConfig{
 			Type:   llms.LLMType(GetConfigWithDefault("MASTER_LLM", string(llms.DeepSeekLLM))),
 			Params: map[string]interface{}{},

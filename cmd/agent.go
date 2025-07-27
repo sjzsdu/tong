@@ -13,6 +13,7 @@ import (
 	"github.com/sjzsdu/tong/share"
 	"github.com/spf13/cobra"
 	"github.com/tmc/langchaingo/agents"
+	"github.com/tmc/langchaingo/memory"
 )
 
 var agentCmd = &cobra.Command{
@@ -75,10 +76,12 @@ func runAgent(cmd *cobra.Command, args []string) {
 		}
 
 		// 创建会话代理
-		ca := agents.NewConversationalAgent(llm, schemeTools)
+		chatMemory := memory.NewConversationBuffer()
+		// 使用自定义的回调处理器，结合AgentProcessor
+		agent := agents.NewConversationalAgent(llm, schemeTools)
 
-		// 创建执行器
-		executor := agents.NewExecutor(ca)
+		// 设置执行器
+		executor := agents.NewExecutor(agent, agents.WithMemory(chatMemory))
 
 		// 创建交互式会话适配器
 		session := cmdio.CreateAgentAdapter(executor, streamMode)

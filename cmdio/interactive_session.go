@@ -12,14 +12,14 @@ import (
 
 // InteractiveSession 交互式会话结构体
 type InteractiveSession struct {
-	Processor               InteractiveProcessor    // 处理器
-	renderer                renders.Renderer        // 渲染器
-	welcome                 string                  // 欢迎信息
-	stream                  bool                    // 是否流失输出
-	tips                    []string                // 提示信息
-	prompt                  string                  // 命令提示符
-	exitCommands            []string                // 退出命令列表
-	inputStringFunc         InputStringFunc         // 输入函数，用于依赖注入和测试
+	Processor                InteractiveProcessor     // 处理器
+	renderer                 renders.Renderer         // 渲染器
+	welcome                  string                   // 欢迎信息
+	stream                   bool                     // 是否流失输出
+	tips                     []string                 // 提示信息
+	prompt                   string                   // 命令提示符
+	exitCommands             []string                 // 退出命令列表
+	inputStringFunc          InputStringFunc          // 输入函数，用于依赖注入和测试
 	showLoadingAnimationFunc ShowLoadingAnimationFunc // 加载动画函数，用于依赖注入和测试
 }
 
@@ -30,13 +30,13 @@ type SessionOption func(*InteractiveSession)
 func NewInteractiveSession(processor InteractiveProcessor, opts ...SessionOption) *InteractiveSession {
 	// 默认选项
 	options := &InteractiveSession{
-		Processor:    processor,
-		renderer:     helper.GetDefaultRenderer(),
-		welcome:      "",
-		tips:         []string{},
-		prompt:       "> ",
-		exitCommands: []string{"quit", "q", "exit"},
-		inputStringFunc: helper.InputString,
+		Processor:                processor,
+		renderer:                 helper.GetDefaultRenderer(),
+		welcome:                  "",
+		tips:                     []string{},
+		prompt:                   "> ",
+		exitCommands:             []string{"quit", "q", "exit"},
+		inputStringFunc:          helper.InputString,
 		showLoadingAnimationFunc: helper.ShowLoadingAnimation,
 	}
 
