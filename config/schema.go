@@ -131,12 +131,13 @@ func DefaultSchemaConfig() *SchemaConfig {
 			"default": {
 				Disabled:      false,
 				Timeout:       60,
-				Command:       "tong mcp",
+				Command:       "tong",
+				Args:          []string{"mcp", "--serve"},
 				TransportType: "stdio",
 			},
 		},
 		MasterLLM: LLMConfig{
-			Type:   llms.DeepSeekLLM,
+			Type:   llms.LLMType(GetConfigWithDefault("MASTER_LLM", string(llms.DeepSeekLLM))),
 			Params: map[string]interface{}{},
 		},
 		EmbeddingLLM: LLMConfig{

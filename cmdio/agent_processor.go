@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/lang"
+	"github.com/sjzsdu/tong/share"
 	"github.com/tmc/langchaingo/agents"
 	"github.com/tmc/langchaingo/chains"
 )
@@ -13,14 +15,14 @@ import (
 // 实现了 InteractiveProcessor 接口
 type AgentProcessor struct {
 	executor    *agents.Executor // langchaingo 的 agent executor
-	streamMode  bool            // 是否使用流式输出
-	lastContent string          // 最后一次处理的内容
+	streamMode  bool             // 是否使用流式输出
+	lastContent string           // 最后一次处理的内容
 }
 
 // NewAgentProcessor 创建一个新的 AgentProcessor
 func NewAgentProcessor(executor *agents.Executor, streamMode bool) *AgentProcessor {
 	return &AgentProcessor{
-		executor:    executor,
+		executor:   executor,
 		streamMode: streamMode,
 	}
 }
@@ -64,6 +66,9 @@ func (p *AgentProcessor) ProcessInputStream(ctx context.Context, input string, c
 
 	// 创建一个流式回调函数
 	streamingFunc := func(ctx context.Context, chunk []byte) error {
+		if share.GetDebug() {
+			helper.PrintWithLabel("流式输出:", string(chunk))
+		}
 		// 将字节转换为字符串并回调
 		content := string(chunk)
 		if content != "" {
@@ -93,6 +98,10 @@ func (p *AgentProcessor) ProcessInputStream(ctx context.Context, input string, c
 	var output string
 	if len(outputKeys) > 0 && result[outputKeys[0]] != nil {
 		output = fmt.Sprintf("%v", result[outputKeys[0]])
+	}
+
+	if share.GetDebug() {
+		helper.PrintWithLabel("最终输出:", output, outputKeys, result)
 	}
 
 	// 如果没有通过流式回调输出任何内容，但有最终输出，则发送一次

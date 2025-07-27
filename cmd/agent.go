@@ -7,6 +7,7 @@ import (
 
 	"github.com/sjzsdu/langchaingo-cn/llms"
 	"github.com/sjzsdu/tong/cmdio"
+	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/lang"
 	"github.com/sjzsdu/tong/mcp"
 	"github.com/sjzsdu/tong/share"
@@ -34,16 +35,20 @@ func init() {
 
 func runAgent(cmd *cobra.Command, args []string) {
 
-	// Initialize LLM
-	llm, err := llms.CreateLLM(llms.DeepSeekLLM, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	// 获取配置
 	config, err := GetConfig()
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	// Initialize LLM
+	llm, err := llms.CreateLLM(config.EmbeddingLLM.Type, config.EmbeddingLLM.Params)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	if share.GetDebug() {
+		helper.PrintWithLabel("配置信息:", config)
 	}
 
 	host, err := mcp.NewHost(config)
