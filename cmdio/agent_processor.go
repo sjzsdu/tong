@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/sjzsdu/tong/helper"
+	"github.com/sjzsdu/tong/helper/renders"
 	"github.com/sjzsdu/tong/lang"
-	"github.com/sjzsdu/tong/share"
 	"github.com/tmc/langchaingo/agents"
+	"github.com/tmc/langchaingo/callbacks"
 	"github.com/tmc/langchaingo/chains"
+	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/memory"
+	"github.com/tmc/langchaingo/tools"
 )
 
 // AgentProcessor 是一个适配 langchaingo agent 的处理器
@@ -17,111 +20,110 @@ type AgentProcessor struct {
 	executor    *agents.Executor // langchaingo 的 agent executor
 	streamMode  bool             // 是否使用流式输出
 	lastContent string           // 最后一次处理的内容
+	Handler     callbacks.Handler
+	handled     bool
+	render      renders.Renderer
+	loadingDone chan bool
 }
 
 // NewAgentProcessor 创建一个新的 AgentProcessor
-func NewAgentProcessor(executor *agents.Executor, streamMode bool) *AgentProcessor {
-	return &AgentProcessor{
-		executor:   executor,
+func NewAgentProcessor(streamMode bool) *AgentProcessor {
+	// 创建处理器实例
+	processor := &AgentProcessor{
 		streamMode: streamMode,
 	}
+
+	// 创建并设置回调处理器
+	processor.Handler = NewCallbackHandler(processor)
+
+	return processor
 }
 
-// ProcessInput 处理用户输入，非流式模式
-func (p *AgentProcessor) ProcessInput(ctx context.Context, input string) (string, error) {
-	// 使用 chains.Call 处理输入
-	result, err := chains.Call(ctx, p.executor, map[string]any{"input": input})
-	if err != nil {
-		return "", fmt.Errorf(lang.T("处理输入时出错")+": %v", err)
-	}
-
-	// 从结果中获取输出
-	outputKeys := p.executor.GetOutputKeys()
-	var output string
-	if len(outputKeys) > 0 && result[outputKeys[0]] != nil {
-		output = fmt.Sprintf("%v", result[outputKeys[0]])
-	}
-
-	// 保存最后处理的内容
-	p.lastContent = output
-	return output, nil
+func (p *AgentProcessor) SetExecutor(executor *agents.Executor) {
+	p.executor = executor
 }
 
-// ProcessInputStream 流式处理用户输入
-func (p *AgentProcessor) ProcessInputStream(ctx context.Context, input string, callback func(content string, done bool)) error {
-	if !p.streamMode {
-		// 如果不是流式模式，则使用非流式处理
-		content, err := p.ProcessInput(ctx, input)
+func (p *AgentProcessor) StartProcess(stream bool, render renders.Renderer, loadingDone chan bool) {
+	p.render = render
+	p.loadingDone = loadingDone
+	p.streamMode = stream
+	p.handled = false
+	p.lastContent = ""
+}
+
+// ProcessInput 处理用户输入
+func (p *AgentProcessor) ProcessInput(ctx context.Context, input string, stream bool, render renders.Renderer, loadingDone chan bool) error {
+	p.StartProcess(stream, render, loadingDone)
+
+	if stream {
+		streamingFunc := func(ctx context.Context, chunk []byte) error {
+			content := string(chunk)
+			done := false
+			if content == "" {
+				done = true
+			}
+			return p.ProcessStreaming(content, done)
+		}
+
+		// 使用 WithStreamingFunc 选项创建流式处理
+		options := []chains.ChainCallOption{
+			chains.WithStreamingFunc(streamingFunc),
+		}
+
+		// 运行 agent executor
+		_, err := chains.Call(ctx, p.executor, map[string]any{"input": input}, options...)
 		if err != nil {
-			return err
-		}
-		callback(content, true)
-		return nil
-	}
-
-	// 创建一个累积内容的变量
-	var accumulatedContent string
-	// 标记是否已经通过流式回调输出了内容
-	var streamingDone bool
-
-	// 创建一个流式回调函数
-	streamingFunc := func(ctx context.Context, chunk []byte) error {
-		if share.GetDebug() {
-			helper.PrintWithLabel("流式输出:", string(chunk))
-		}
-		// 将字节转换为字符串并回调
-		content := string(chunk)
-		if content != "" {
-			// 累积内容
-			accumulatedContent += content
-			// 回调当前内容片段
-			callback(content, false)
-			// 标记已经输出了内容
-			streamingDone = true
+			return fmt.Errorf(lang.T("流式处理输入时出错")+": %v", err)
 		}
 		return nil
+	} else {
+		options := []chains.ChainCallOption{}
+		result, err := chains.Call(ctx, p.executor, map[string]any{"input": input}, options...)
+		if err != nil {
+			return fmt.Errorf(lang.T("处理输入时出错")+": %v", err)
+		}
+		p.ProcessStreaming("", false)
+
+		// 从结果中获取输出
+		outputKeys := p.executor.GetOutputKeys()
+		var output string
+		if len(outputKeys) > 0 && result[outputKeys[0]] != nil {
+			output = fmt.Sprintf("%v", result[outputKeys[0]])
+		}
+		p.ProcessStreaming(output, true)
+		return nil
 	}
+}
 
-	// 使用 WithStreamingFunc 选项创建流式处理
-	options := []chains.ChainCallOption{
-		chains.WithStreamingFunc(streamingFunc),
+func (p *AgentProcessor) ProcessStreaming(content string, done bool) error {
+	if !p.handled {
+		p.handled = true
+		p.loadingDone <- true
+		<-p.loadingDone
 	}
-
-	// 运行 agent executor 通过 chains.Call
-	result, err := chains.Call(ctx, p.executor, map[string]any{"input": input}, options...)
-	if err != nil {
-		return fmt.Errorf(lang.T("流式处理输入时出错")+": %v", err)
+	p.lastContent += content
+	p.render.WriteStream(content)
+	if done {
+		p.render.Done()
 	}
-
-	// 从结果中获取输出
-	outputKeys := p.executor.GetOutputKeys()
-	var output string
-	if len(outputKeys) > 0 && result[outputKeys[0]] != nil {
-		output = fmt.Sprintf("%v", result[outputKeys[0]])
-	}
-
-	if share.GetDebug() {
-		helper.PrintWithLabel("最终输出:", output, outputKeys, result)
-	}
-
-	// 如果没有通过流式回调输出任何内容，但有最终输出，则发送一次
-	if !streamingDone && output != "" {
-		callback(output, false)
-		accumulatedContent = output
-	}
-
-	// 保存最后处理的内容
-	p.lastContent = accumulatedContent
-
-	// 标记处理完成
-	callback("", true)
 	return nil
 }
 
 // CreateAgentAdapter 创建一个适配 langchaingo agent 的交互式会话
-func CreateAgentAdapter(executor *agents.Executor, streamMode bool) *InteractiveSession {
+func CreateAgentAdapter(llm llms.Model, schemeTools []tools.Tool, streamMode bool) *InteractiveSession {
+
+	processor := NewAgentProcessor(streamMode)
+
+	// 创建会话代理
+	chatMemory := memory.NewConversationBuffer()
+	// 使用自定义的回调处理器，结合AgentProcessor
+	agent := agents.NewConversationalAgent(llm, schemeTools, agents.WithCallbacksHandler(processor.Handler))
+
+	// 设置执行器
+	executor := agents.NewExecutor(agent, agents.WithMemory(chatMemory))
+
 	// 创建处理器
-	processor := NewAgentProcessor(executor, streamMode)
+	processor.SetExecutor(executor)
 
 	// 创建交互式会话
 	session := NewInteractiveSession(

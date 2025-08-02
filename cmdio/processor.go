@@ -1,12 +1,14 @@
 package cmdio
 
-import "context"
+import (
+	"context"
+
+	"github.com/sjzsdu/tong/helper/renders"
+)
 
 // InteractiveProcessor 交互式处理器接口
 type InteractiveProcessor interface {
-	// ProcessInput 处理用户输入
-	ProcessInput(ctx context.Context, input string) (string, error)
-	ProcessInputStream(ctx context.Context, input string, callback func(content string, done bool)) error
+	ProcessInput(ctx context.Context, input string, stream bool, render renders.Renderer, loadingDone chan bool) error
 }
 
 // BaseProcessor 基础处理器实现，作为其他处理器的基类
@@ -18,16 +20,7 @@ func NewBaseProcessor() *BaseProcessor {
 }
 
 // ProcessInput 处理用户输入的空实现
-func (p *BaseProcessor) ProcessInput(ctx context.Context, input string) (string, error) {
-	// 空实现，直接返回输入
-	return input, nil
-}
-
-// ProcessInputStream 流式处理用户输入的空实现
-func (p *BaseProcessor) ProcessInputStream(ctx context.Context, input string, callback func(content string, done bool)) error {
-	// 空实现，直接回调完成
-	callback(input, true)
+func (p *BaseProcessor) ProcessInput(ctx context.Context, input string, stream bool, render renders.Renderer, loadingDone chan bool) error {
+	// 通知加载动画结束
 	return nil
 }
-
-

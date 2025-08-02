@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/sjzsdu/tong/helper/renders"
 	"github.com/sjzsdu/tong/lang"
+	"github.com/tmc/langchaingo/callbacks"
 	"github.com/tmc/langchaingo/chains"
 )
 
@@ -14,94 +16,85 @@ type ChainProcessor struct {
 	chain       chains.Chain // langchaingo 的 chain
 	streamMode  bool         // 是否使用流式输出
 	lastContent string       // 最后一次处理的内容
+	Handler     callbacks.Handler
+	handled     bool
+	render      renders.Renderer
+	loadingDone chan bool
 }
 
 // NewChainProcessor 创建一个新的 ChainProcessor
 func NewChainProcessor(chain chains.Chain, streamMode bool) *ChainProcessor {
-	return &ChainProcessor{
+	processor := &ChainProcessor{
 		chain:      chain,
 		streamMode: streamMode,
 	}
+	processor.Handler = NewCallbackHandler(processor)
+	return processor
 }
 
-// ProcessInput 处理用户输入，非流式模式
-func (p *ChainProcessor) ProcessInput(ctx context.Context, input string) (string, error) {
-	// 使用 chain 处理输入
-	result, err := chains.Call(ctx, p.chain, map[string]any{"input": input})
-	if err != nil {
-		return "", fmt.Errorf(lang.T("处理输入时出错")+": %v", err)
-	}
-
-	// 从结果中获取输出
-	outputKeys := p.chain.GetOutputKeys()
-	var output string
-	if len(outputKeys) > 0 && result[outputKeys[0]] != nil {
-		output = fmt.Sprintf("%v", result[outputKeys[0]])
-	}
-
-	// 保存最后处理的内容
-	p.lastContent = output
-	return output, nil
+func (p *ChainProcessor) StartProcess(stream bool, render renders.Renderer, loadingDone chan bool) {
+	p.render = render
+	p.loadingDone = loadingDone
+	p.streamMode = stream
+	p.handled = false
+	p.lastContent = ""
 }
 
-// ProcessInputStream 流式处理用户输入
-func (p *ChainProcessor) ProcessInputStream(ctx context.Context, input string, callback func(content string, done bool)) error {
-	if !p.streamMode {
-		// 如果不是流式模式，则使用非流式处理
-		content, err := p.ProcessInput(ctx, input)
+// ProcessInput 处理用户输入
+func (p *ChainProcessor) ProcessInput(ctx context.Context, input string, stream bool, render renders.Renderer, loadingDone chan bool) error {
+	p.StartProcess(stream, render, loadingDone)
+
+	if stream {
+		streamingFunc := func(ctx context.Context, chunk []byte) error {
+			content := string(chunk)
+			done := false
+			if content == "" {
+				done = true
+			}
+			return p.ProcessStreaming(content, done)
+		}
+
+		// 使用 WithStreamingFunc 选项创建流式处理
+		options := []chains.ChainCallOption{
+			chains.WithStreamingFunc(streamingFunc),
+		}
+
+		// 运行 chain
+		_, err := chains.Call(ctx, p.chain, map[string]any{"input": input}, options...)
 		if err != nil {
-			return err
-		}
-		callback(content, true)
-		return nil
-	}
-
-	// 创建一个累积内容的变量
-	var accumulatedContent string
-
-	// 创建一个流式回调函数
-	streamingFunc := func(ctx context.Context, chunk []byte) error {
-		// 将字节转换为字符串并回调
-		content := string(chunk)
-		if content != "" {
-			// 累积内容
-			accumulatedContent += content
-			// 回调当前内容片段
-			callback(content, false)
+			return fmt.Errorf(lang.T("流式处理输入时出错")+": %v", err)
 		}
 		return nil
+	} else {
+		options := []chains.ChainCallOption{}
+		result, err := chains.Call(ctx, p.chain, map[string]any{"input": input}, options...)
+		if err != nil {
+			return fmt.Errorf(lang.T("处理输入时出错")+": %v", err)
+		}
+		p.ProcessStreaming("", false)
+
+		// 从结果中获取输出
+		outputKeys := p.chain.GetOutputKeys()
+		var output string
+		if len(outputKeys) > 0 && result[outputKeys[0]] != nil {
+			output = fmt.Sprintf("%v", result[outputKeys[0]])
+		}
+		p.ProcessStreaming(output, true)
+		return nil
 	}
+}
 
-	// 使用 WithStreamingFunc 选项创建流式处理
-	options := []chains.ChainCallOption{
-		chains.WithStreamingFunc(streamingFunc),
+func (p *ChainProcessor) ProcessStreaming(content string, done bool) error {
+	if !p.handled {
+		p.handled = true
+		p.loadingDone <- true
+		<-p.loadingDone
 	}
-
-	// 运行 chain
-	result, err := chains.Call(ctx, p.chain, map[string]any{"input": input}, options...)
-	if err != nil {
-		return fmt.Errorf(lang.T("流式处理输入时出错")+": %v", err)
+	p.lastContent += content
+	p.render.WriteStream(content)
+	if done {
+		p.render.Done()
 	}
-
-	// 从结果中获取输出
-	outputKeys := p.chain.GetOutputKeys()
-	var output string
-	if len(outputKeys) > 0 && result[outputKeys[0]] != nil {
-		output = fmt.Sprintf("%v", result[outputKeys[0]])
-	}
-
-	// 如果累积内容为空但输出不为空，使用输出
-	if accumulatedContent == "" && output != "" {
-		accumulatedContent = output
-		// 如果之前没有流式输出，但有最终输出，则发送一次
-		callback(output, false)
-	}
-
-	// 保存最后处理的内容
-	p.lastContent = accumulatedContent
-
-	// 标记处理完成
-	callback("", true)
 	return nil
 }
 

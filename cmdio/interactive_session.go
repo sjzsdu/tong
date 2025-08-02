@@ -89,57 +89,19 @@ func (s *InteractiveSession) Start(ctx context.Context) error {
 			return nil
 		}
 
-		responseStarted := false
 		loadingDone := make(chan bool, 1)
 		go s.showLoadingAnimationFunc(loadingDone)
 
-		if s.stream {
-			// 使用流式处理
-			err := s.Processor.ProcessInputStream(ctx, input, func(content string, done bool) {
-				if !responseStarted {
-					loadingDone <- true
-					responseStarted = true
-					<-loadingDone
-				}
-				s.renderer.WriteStream(content)
-				if done {
-					s.renderer.Done()
-				}
-			})
-
-			if !responseStarted {
-				loadingDone <- true
-				<-loadingDone // 确保加载动画完全结束
+		err = s.Processor.ProcessInput(ctx, input, s.stream, s.renderer, loadingDone)
+		if err != nil {
+			if err == context.Canceled || strings.Contains(err.Error(), "context canceled") {
+				return err
 			}
-
-			if err != nil {
-				if err == context.Canceled || strings.Contains(err.Error(), "context canceled") {
-					return err
-				}
-				errMsg := fmt.Sprintf(lang.T("Error processing input")+": %v\n", err)
-				s.renderer.WriteStream(errMsg)
-				s.renderer.Done()
-				continue
-			}
-		} else {
-			content, err := s.Processor.ProcessInput(ctx, input)
-			if err != nil {
-				if err == context.Canceled || strings.Contains(err.Error(), "context canceled") {
-					return err
-				}
-				errMsg := fmt.Sprintf(lang.T("Error processing input")+": %v\n", err)
-				// 通知加载动画结束
-				loadingDone <- true
-				<-loadingDone
-				s.renderer.WriteStream(errMsg)
-				s.renderer.Done()
-				continue
-			}
+			errMsg := fmt.Sprintf(lang.T("Error processing input")+": %v\n", err)
 			// 通知加载动画结束
 			loadingDone <- true
 			<-loadingDone
-			// 写入内容，不添加换行符
-			s.renderer.WriteStream(content)
+			s.renderer.WriteStream(errMsg)
 			s.renderer.Done()
 		}
 	}
