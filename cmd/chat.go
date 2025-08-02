@@ -27,8 +27,14 @@ func init() {
 
 func runChat(cmd *cobra.Command, args []string) {
 
+	// 获取配置
+	config, err := GetConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// Initialize LLM
-	llm, err := llms.CreateLLM(llms.DeepSeekLLM, nil)
+	llm, err := llms.CreateLLM(config.MasterLLM.Type, config.MasterLLM.Params)
 	if err != nil {
 		log.Fatal(err)
 	}

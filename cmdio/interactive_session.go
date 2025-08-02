@@ -8,6 +8,7 @@ import (
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/helper/renders"
 	"github.com/sjzsdu/tong/lang"
+	"github.com/sjzsdu/tong/share"
 )
 
 // InteractiveSession 交互式会话结构体
@@ -97,11 +98,12 @@ func (s *InteractiveSession) Start(ctx context.Context) error {
 			if err == context.Canceled || strings.Contains(err.Error(), "context canceled") {
 				return err
 			}
-			errMsg := fmt.Sprintf(lang.T("Error processing input")+": %v\n", err)
+			if share.GetDebug() {
+				helper.PrintWithLabel("ProcessInput", err)
+			}
 			// 通知加载动画结束
 			loadingDone <- true
 			<-loadingDone
-			s.renderer.WriteStream(errMsg)
 			s.renderer.Done()
 		}
 	}

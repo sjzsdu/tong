@@ -7,9 +7,13 @@
             "args": [
                 "-y",
                 "@modelcontextprotocol/server-filesystem",
-                "/Users/juzhongsun/Codes/gos/wn"
+                "."
             ],
             "transportType": "stdio"
         }
+    },
+    "masterLLM": {
+        "type": "deepseek",
+        "params": {}
     }
 }

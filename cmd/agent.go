@@ -41,7 +41,7 @@ func runAgent(cmd *cobra.Command, args []string) {
 	}
 
 	// Initialize LLM
-	llm, err := llms.CreateLLM(config.EmbeddingLLM.Type, config.EmbeddingLLM.Params)
+	llm, err := llms.CreateLLM(config.MasterLLM.Type, config.MasterLLM.Params)
 
 	if err != nil {
 		log.Fatal(err)
