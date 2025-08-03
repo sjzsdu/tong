@@ -21,11 +21,6 @@ func TestDefaultSchemaConfig(t *testing.T) {
 	// 验证默认配置中的 MCPServers 不为空
 	assert.NotNil(t, defaultConfig.MCPServers)
 	
-	// 验证默认配置中包含 default 服务器
-	defaultServer, exists := defaultConfig.MCPServers["default"]
-	assert.True(t, exists)
-	assert.False(t, defaultServer.Disabled)
-
 	// 验证 MasterLLM 和 EmbeddingLLM 配置不为空
 	assert.NotEmpty(t, defaultConfig.MasterLLM.Type)
 	assert.NotEmpty(t, defaultConfig.EmbeddingLLM.Type)
@@ -41,8 +36,6 @@ func TestLoadMCPConfig(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, config)
 		assert.NotNil(t, config.MCPServers)
-		_, exists := config.MCPServers["default"]
-		assert.True(t, exists)
 	})
 
 	// 创建目录配置文件
@@ -73,9 +66,7 @@ func TestLoadMCPConfig(t *testing.T) {
 		assert.Equal(t, "dir_command", dirServer.Command)
 		assert.Equal(t, 120, dirServer.Timeout)
 
-		// 验证默认配置仍然存在
-		_, exists = config.MCPServers["default"]
-		assert.True(t, exists)
+		// 不再验证默认配置
 	})
 
 	// 创建文件配置
@@ -123,15 +114,25 @@ func TestLoadMCPConfig(t *testing.T) {
 		assert.Equal(t, "overridden_command", dirServer.Command)
 		assert.Equal(t, 60, dirServer.Timeout)
 
-		// 验证默认配置仍然存在
-		_, exists = config.MCPServers["default"]
-		assert.True(t, exists)
+		// 不再验证默认配置
 	})
 }
 
 func TestMergeConfig(t *testing.T) {
 	// 直接测试 MergeConfig 函数
 	target := config.DefaultSchemaConfig()
+	// 确保 target.MCPServers 已初始化
+	if target.MCPServers == nil {
+		target.MCPServers = make(map[string]config.MCPServerConfig)
+	}
+	// 添加一个测试服务器到 target
+	target.MCPServers["test_server"] = config.MCPServerConfig{
+		Disabled:      false,
+		Timeout:       60,
+		Command:       "test_command",
+		TransportType: "stdio",
+	}
+
 	source := &config.SchemaConfig{
 		MCPServers: map[string]config.MCPServerConfig{
 			"new_server": {
@@ -141,10 +142,10 @@ func TestMergeConfig(t *testing.T) {
 				TransportType: "sse",
 				Url:           "http://localhost:9000",
 			},
-			"default": { // 覆盖默认服务器
+			"test_server": { // 覆盖测试服务器
 				Disabled:      true,
 				Timeout:       30,
-				Command:       "overridden_default",
+				Command:       "overridden_test",
 				TransportType: "stdio",
 			},
 		},
@@ -161,10 +162,10 @@ func TestMergeConfig(t *testing.T) {
 	assert.Equal(t, "sse", newServer.TransportType)
 	assert.Equal(t, "http://localhost:9000", newServer.Url)
 
-	// 验证默认服务器已被覆盖
-	defaultServer, exists := target.MCPServers["default"]
+	// 验证测试服务器已被覆盖
+	testServer, exists := target.MCPServers["test_server"]
 	assert.True(t, exists)
-	assert.True(t, defaultServer.Disabled)
-	assert.Equal(t, "overridden_default", defaultServer.Command)
-	assert.Equal(t, 30, defaultServer.Timeout)
+	assert.True(t, testServer.Disabled)
+	assert.Equal(t, "overridden_test", testServer.Command)
+	assert.Equal(t, 30, testServer.Timeout)
 }
