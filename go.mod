@@ -95,6 +95,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/sjzsdu/langchaingo-cn => ../langchaingo-cn
+// replace github.com/sjzsdu/langchaingo-cn => ../langchaingo-cn
 
 // replace github.com/tmc/langchaingo => ../langchaingo
