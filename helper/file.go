@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,6 +14,22 @@ import (
 
 	"github.com/sjzsdu/tong/share"
 )
+
+// WriteFile 安全地写入文件，会创建所需的目录
+func WriteFile(filepath string, data []byte) error {
+	// 确保目录存在
+	dir := filepath[:strings.LastIndex(filepath, string(os.PathSeparator))]
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("创建目录失败 %s: %w", dir, err)
+	}
+
+	// 写入文件
+	if err := ioutil.WriteFile(filepath, data, 0644); err != nil {
+		return fmt.Errorf("写入文件失败 %s: %w", filepath, err)
+	}
+
+	return nil
+}
 
 // FileInfo 包含文件的基本信息
 type FileInfo struct {
@@ -31,7 +48,7 @@ type WalkDirOptions struct {
 	DisableGitIgnore bool
 	Extensions       []string
 	Excludes         []string
-	LoadContent      bool      // 是否立即加载文件内容
+	LoadContent      bool // 是否立即加载文件内容
 }
 
 func WalkDir(root string, callback WalkFunc, filter FilterFunc, options WalkDirOptions) error {
