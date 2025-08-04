@@ -16,7 +16,7 @@ var promptCmd = &cobra.Command{
 }
 
 func init() {
-	promptCmd.Flags().StringVar(&name, "create", "", lang.T("Prompt name"))
+	promptCmd.Flags().StringVar(&promptName, "name", "", lang.T("Prompt name"))
 	promptCmd.Flags().StringVar(&content, "content", "", lang.T("Prompt content"))
 	promptCmd.Flags().StringVar(&contentFile, "file", "", lang.T("Read content from file"))
 	rootCmd.AddCommand(promptCmd)
@@ -32,19 +32,19 @@ func runPrompt(cmd *cobra.Command, args []string) {
 	}
 
 	if len(args) > 1 {
-		name = args[1]
+		promptName = args[1]
 	}
 
 	switch args[0] {
 	case "list":
 		prompt.ListPrompts()
 	case "add":
-		prompt.SavePrompt(name, getContent())
+		prompt.SavePrompt(promptName, getContent())
 	case "delete":
-		prompt.DeleteExistingPrompt(name)
+		prompt.DeleteExistingPrompt(promptName)
 	case "show":
-		content := prompt.ShowPromptContent(name)
-		fmt.Print(content)
+		promptContent := prompt.ShowPromptContent(promptName)
+		fmt.Print(promptContent)
 	default:
 		fmt.Println("未知的操作类型: " + args[0])
 		cmd.Help()

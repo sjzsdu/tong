@@ -6,6 +6,7 @@ import (
 
 	"github.com/sjzsdu/tong/helper/renders"
 	"github.com/sjzsdu/tong/lang"
+	"github.com/sjzsdu/tong/prompt"
 	"github.com/tmc/langchaingo/agents"
 	"github.com/tmc/langchaingo/callbacks"
 	"github.com/tmc/langchaingo/chains"
@@ -110,14 +111,20 @@ func (p *AgentProcessor) ProcessStreaming(content string, done bool) error {
 }
 
 // CreateAgentAdapter 创建一个适配 langchaingo agent 的交互式会话
-func CreateAgentAdapter(llm llms.Model, schemeTools []tools.Tool, streamMode bool) *InteractiveSession {
+func CreateAgentAdapter(llm llms.Model, promptName string, schemeTools []tools.Tool, streamMode bool) *InteractiveSession {
 
 	processor := NewAgentProcessor(streamMode)
 
 	// 创建会话代理
 	chatMemory := memory.NewConversationBuffer()
+	// 设置系统提示
+	openAIOption := agents.NewOpenAIOption()
+	systemPrompt := prompt.ShowPromptContent(promptName)
+
 	// 使用自定义的回调处理器，结合AgentProcessor
-	agent := agents.NewConversationalAgent(llm, schemeTools, agents.WithCallbacksHandler(processor.Handler))
+	agent := agents.NewConversationalAgent(llm, schemeTools,
+		agents.WithCallbacksHandler(processor.Handler),
+		openAIOption.WithSystemMessage(systemPrompt))
 
 	// 设置执行器
 	executor := agents.NewExecutor(agent, agents.WithMemory(chatMemory))

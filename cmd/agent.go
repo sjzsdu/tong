@@ -28,6 +28,7 @@ func init() {
 	agentCmd.Flags().StringVarP(&configFile, "config", "c", "tong.json", lang.T("Config file"))
 	agentCmd.Flags().StringVarP(&workDir, "directory", "d", ".", lang.T("Work directory path"))
 	agentCmd.Flags().StringVarP(&repoURL, "repository", "r", "", lang.T("Git repository URL to clone and pack"))
+	promptCmd.Flags().StringVar(&promptName, "prompt", "coder", lang.T("Prompt name"))
 
 	rootCmd.AddCommand(agentCmd)
 }
@@ -74,7 +75,7 @@ func runAgent(cmd *cobra.Command, args []string) {
 		}
 
 		// 创建交互式会话适配器
-		session := cmdio.CreateAgentAdapter(llm, schemeTools, streamMode)
+		session := cmdio.CreateAgentAdapter(llm, promptName, schemeTools, streamMode)
 
 		// 启动交互式会话
 		err = session.Start(ctx)

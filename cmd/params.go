@@ -17,7 +17,7 @@ var (
 	skipGitIgnore   bool
 	debugMode       bool
 
-	name        string
+	promptName  string
 	content     string
 	contentFile string
 
