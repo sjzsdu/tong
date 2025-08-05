@@ -1,18 +1,13 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"log"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
+	"sort"
+	"strings"
 
-	"github.com/mark3labs/mcp-go/server"
+	configPackage "github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/lang"
-	"github.com/sjzsdu/tong/mcpserver"
 	"github.com/spf13/cobra"
 )
 
@@ -32,108 +27,79 @@ func init() {
 }
 
 func runMCP(cmd *cobra.Command, args []string) {
-	// 如果设置了显示工具选项，则输出可用工具列表并退出
-	if showTools {
-		displayAvailableTools()
+	// 检查参数是否存在
+	if len(args) == 0 {
+		fmt.Println("请指定操作类型: available, list")
+		cmd.Help()
 		return
 	}
 
-	doc, err := GetProject()
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		return
+	switch args[0] {
+	case "list":
+		// 列出当前配置的 MCP 服务
+		listConfiguredMCPServers()
+	case "available":
+		// 列出所有可用的 MCP 服务
+		listAvailableMCPServers()
+	default:
+		fmt.Println("未知的操作类型: " + args[0])
+		cmd.Help()
 	}
-
-	// 创建 MCP 服务器
-	mcpServer, err := mcpserver.NewTongMCPServer(doc)
-	if err != nil {
-		log.Fatalf("Error creating MCP server: %v", err)
-	}
-
-	// 创建 HTTP 服务器
-	httpServer := server.NewStreamableHTTPServer(mcpServer,
-		server.WithEndpointPath("/mcp"),
-	)
-
-	// 创建取消上下文用于优雅退出
-	cancel := make(chan struct{})
-	defer close(cancel)
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		<-sigChan
-		log.Println("Received shutdown signal, stopping server...")
-		// 关闭服务器
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer shutdownCancel()
-		if err := httpServer.Shutdown(shutdownCtx); err != nil {
-			log.Printf("Error shutting down server: %v", err)
-		}
-		close(cancel)
-	}()
-
-	// 启动服务器
-	log.Printf("MCP Server started on http://localhost:%d/mcp", mcpPort)
-	log.Printf("提示: 使用 'tong mcp --list' 查看所有可用的 MCP 工具")
-	if err := httpServer.Start(fmt.Sprintf(":%d", mcpPort)); err != nil {
-		if err != http.ErrServerClosed {
-			log.Fatalf("Server error: %v", err)
-		}
-	}
-
-	log.Println("Server stopped gracefully")
 }
 
-// displayAvailableTools 显示MCP服务器提供的所有工具
-func displayAvailableTools() {
-	tools := mcpserver.GetAvailableTools()
+// printMCPServices 打印 MCP 服务列表，提供通用的输出格式
+func printMCPServices(title string, services map[string]interface{}, formatter func(string) string) {
+	// 如果没有服务
+	if len(services) == 0 {
+		fmt.Println(title + "\n当前没有服务")
+		return
+	}
 
-	fmt.Println("=== MCP 服务器提供的工具 ===")
+	// 按字母顺序排序服务名称
+	serviceNames := make([]string, 0, len(services))
+	for name := range services {
+		serviceNames = append(serviceNames, name)
+	}
+	sort.Strings(serviceNames)
 
-	// 按类别组织工具
-	fileTools := []map[string]string{}
-	editorTools := []map[string]string{}
-	projectTools := []map[string]string{}
+	// 输出服务
+	fmt.Println(title)
+	for _, name := range serviceNames {
+		output := name
+		if formatter != nil {
+			output = formatter(name)
+		}
+		fmt.Printf("- %s\n", output)
+	}
+}
 
-	// 分类工具
-	for _, tool := range tools {
-		name := tool["name"]
-		switch {
-		case name == "listFiles" || name == "readFile" || name == "writeFile" ||
-			name == "createFile" || name == "createDirectory" || name == "deleteFile":
-			fileTools = append(fileTools, tool)
-		case name == "findText" || name == "replaceText" || name == "formatCode":
-			editorTools = append(editorTools, tool)
-		default:
-			projectTools = append(projectTools, tool)
+// listConfiguredMCPServers 列出当前配置的 MCP 服务
+func listConfiguredMCPServers() {
+	schemaConfig, err := GetConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+	// 打印服务列表
+	services := make(map[string]interface{})
+	for name, serverConfig := range schemaConfig.MCPServers {
+		if !serverConfig.Disabled {
+			services[name] = serverConfig
 		}
 	}
+	printMCPServices("当前已配置的 MCP 服务:", services, nil)
+}
 
-	// 显示文件操作工具
-	fmt.Println("文件操作工具:")
-	for _, tool := range fileTools {
-		fmt.Printf("  - %-15s: %s\n", tool["name"], tool["description"])
+// listAvailableMCPServers 列出所有可用的 MCP 服务
+func listAvailableMCPServers() {
+	// 获取 PopularMCPServers 中的所有服务
+	services := make(map[string]interface{})
+	for name, serverConfig := range configPackage.PopularMCPServers {
+		services[name] = serverConfig
 	}
 
-	// 显示编辑器工具
-	fmt.Println("\n编辑器工具:")
-	for _, tool := range editorTools {
-		fmt.Printf("  - %-15s: %s\n", tool["name"], tool["description"])
-	}
-
-	// 显示项目工具
-	fmt.Println("\n项目工具:")
-	for _, tool := range projectTools {
-		fmt.Printf("  - %-15s: %s\n", tool["name"], tool["description"])
-	}
-
-	fmt.Println("\n使用示例:")
-	fmt.Println("  1. 启动 MCP 服务器:")
-	fmt.Printf("     tong mcp -p %d\n", mcpPort)
-	fmt.Println("  2. MCP 客户端可以通过以下地址访问服务器:")
-	fmt.Printf("     http://localhost:%d/mcp\n", mcpPort)
-	fmt.Println("  3. 工具使用方式取决于 MCP 客户端的实现")
-	fmt.Println()
+	// 打印服务列表，并提供格式化函数显示命令
+	printMCPServices("可用的 MCP 服务:", services, func(name string) string {
+		serverConfig := configPackage.PopularMCPServers[name]
+		return fmt.Sprintf("%s (命令: %s %s)", name, serverConfig.Command, strings.Join(serverConfig.Args, " "))
+	})
 }

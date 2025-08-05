@@ -1,19 +1,35 @@
 {
-    "mcpServers": {
-        "filesystem": {
-            "disabled": false,
-            "timeout": 60,
-            "command": "npx",
-            "args": [
-                "-y",
-                "@modelcontextprotocol/server-filesystem",
-                "."
-            ],
-            "transportType": "stdio"
-        }
+  "mcpServers": {
+    "filesystem": {
+      "disabled": false,
+      "timeout": 60,
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "."
+      ],
+      "env": null,
+      "transportType": "stdio"
     },
-    "masterLLM": {
-        "type": "deepseek",
-        "params": {}
+    "web-search": {
+      "disabled": false,
+      "timeout": 300,
+      "command": "npx",
+      "args": [
+        "-y",
+        "@pskill9/web-search"
+      ],
+      "env": [],
+      "transportType": "stdio"
     }
+  },
+  "masterLLM": {
+    "type": "deepseek",
+    "params": {}
+  },
+  "embeddingLLM": {
+    "type": "deepseek",
+    "params": {}
+  }
 }

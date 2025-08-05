@@ -23,8 +23,8 @@ type MCPServerConfig struct {
 }
 
 type LLMConfig struct {
-	Type   llms.LLMType `json:"type"`
-	Params map[string]interface{}
+	Type   llms.LLMType           `json:"type"`
+	Params map[string]interface{} `json:"params"`
 }
 
 // MCPConfig MCP 配置文件结构
@@ -122,6 +122,18 @@ func (c *SchemaConfig) GetServerConfig(name string) *MCPServerConfig {
 		return &config
 	}
 	return nil
+}
+
+// ToJSON 将配置序列化为 JSON 并写入指定路径
+func (c *SchemaConfig) ToJSON(filePath string) error {
+	// 将配置转换为 JSON
+	configJSON, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	// 写入文件
+	return os.WriteFile(filePath, configJSON, 0644)
 }
 
 // DefaultSchemaConfig 生成默认的 SchemaConfig 配置

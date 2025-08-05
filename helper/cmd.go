@@ -14,6 +14,12 @@ import (
 	"github.com/sjzsdu/tong/lang"
 )
 
+// CommandExists checks if a command exists in the system PATH
+func CommandExists(cmd string) bool {
+	_, err := exec.LookPath(cmd)
+	return err == nil
+}
+
 func ShowLoadingAnimation(done chan bool) {
 	spinChars := []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
 	i := 0

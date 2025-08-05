@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -21,11 +22,43 @@ func createMCPClient(config config.MCPServerConfig) (client.MCPClient, error) {
 	case "sse":
 		return client.NewSSEMCPClient(config.Url)
 	case "stdio":
-		return client.NewStdioMCPClient(
-			config.Command,
-			config.Env,
-			config.Args...,
-		)
+		// 检查命令是否存在
+		if !helper.CommandExists(config.Command) {
+			return nil, fmt.Errorf("命令 '%s' 未安装或不在系统路径中，请先安装该命令", config.Command)
+		}
+		
+		// 创建客户端并捕获可能的错误
+		var mcpClient client.MCPClient
+		var clientErr error
+		
+		// 使用 recover 捕获可能的 panic
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					clientErr = fmt.Errorf("创建 MCP 客户端时发生错误: %v", r)
+				}
+			}()
+			
+			// 正确处理两个返回值
+			var clientInstance *client.Client
+			var err error
+			clientInstance, err = client.NewStdioMCPClient(
+				config.Command,
+				config.Env,
+				config.Args...,
+			)
+			if err != nil {
+				clientErr = err
+			} else {
+				// 将 *client.Client 类型转换为 client.MCPClient 接口类型
+				mcpClient = clientInstance
+			}
+		}()
+		
+		if clientErr != nil {
+			return nil, clientErr
+		}
+		return mcpClient, nil
 	default:
 		return nil, fmt.Errorf("不支持的传输类型: %s", config.TransportType)
 	}
@@ -43,6 +76,8 @@ func NewHost(config *config.SchemaConfig) (*Host, error) {
 		Clients: make(map[string]*Client),
 	}
 
+	var initErrors []string
+
 	for name, serverConfig := range config.MCPServers {
 		if serverConfig.Disabled {
 			continue
@@ -50,11 +85,24 @@ func NewHost(config *config.SchemaConfig) (*Host, error) {
 
 		mcpClient, err := createMCPClient(serverConfig)
 		if err != nil {
-			fmt.Printf("创建客户端 %s 失败: %v\n", name, err)
+			errMsg := fmt.Sprintf("MCP服务 '%s' 初始化失败: %v", name, err)
+			initErrors = append(initErrors, errMsg)
+			fmt.Printf("%s\n", errMsg)
 			continue
 		}
 
 		Host.Clients[name] = NewClient(mcpClient, WithHook(NewLogHook(name)))
+	}
+
+	// 如果所有客户端都初始化失败，返回错误
+	if len(Host.Clients) == 0 && len(initErrors) > 0 {
+		return nil, fmt.Errorf("所有 MCP 服务初始化失败:\n%s", strings.Join(initErrors, "\n"))
+	}
+
+	// 如果有部分客户端初始化失败，但至少有一个成功，只打印警告
+	if len(initErrors) > 0 {
+		fmt.Printf("警告: %d 个 MCP 服务初始化失败，%d 个成功初始化\n", 
+			len(initErrors), len(Host.Clients))
 	}
 
 	return Host, nil
