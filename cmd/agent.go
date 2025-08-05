@@ -12,6 +12,7 @@ import (
 	"github.com/sjzsdu/tong/mcp"
 	"github.com/sjzsdu/tong/share"
 	"github.com/spf13/cobra"
+	"github.com/tmc/langchaingo/tools"
 )
 
 var agentCmd = &cobra.Command{
@@ -53,16 +54,21 @@ func runAgent(cmd *cobra.Command, args []string) {
 
 	host, err := mcp.NewHost(config)
 	if err != nil {
-		log.Fatal(err)
+		// 如果 MCP 初始化失败，打印错误但继续执行
+		fmt.Printf("警告: MCP 服务初始化失败: %v\n将继续执行但功能可能受限\n", err)
+		// 创建一个空的 Host 实例
+		host = &mcp.Host{Clients: make(map[string]*mcp.Client)}
 	}
 
 	switch agentType {
 	case "conversation":
 		ctx := context.Background()
 		// 创建基于 SchemeConfig 的工具
+		var schemeTools []tools.Tool
 		schemeTools, err := host.GetTools(ctx)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Printf("警告: 获取 MCP 工具失败: %v\n将继续执行但功能可能受限\n", err)
+			schemeTools = []tools.Tool{}
 		}
 
 		// 打印可用工具列表

@@ -180,8 +180,10 @@ func TestMCPToolAdapterCall(t *testing.T) {
 	// 创建预期的 CallToolResult
 	expectedResult := &mcp.CallToolResult{}
 	// 设置 Result 字段
-	expectedResult.Result.Meta = map[string]interface{}{
-		"result": "测试结果",
+	expectedResult.Result.Meta = &mcp.Meta{
+		AdditionalFields: map[string]interface{}{
+			"result": "测试结果",
+		},
 	}
 
 	// 设置模拟客户端的预期行为
@@ -202,7 +204,8 @@ func TestMCPToolAdapterCall(t *testing.T) {
 
 	// 验证结果
 	assert.NoError(t, err)
-	assert.Contains(t, result, "map")
+	// 在 v0.37.0 中，Meta 从 map 变成了结构体指针，所以结果不再包含 "map" 字符串
+	assert.NotEmpty(t, result)
 
 	// 验证模拟客户端的方法被调用
 	mockClient.AssertExpectations(t)

@@ -133,8 +133,10 @@ func TestHostCallTool(t *testing.T) {
 
 	// 创建预期的 CallToolResult
 	expectedResult := &mcp.CallToolResult{}
-	expectedResult.Result.Meta = map[string]interface{}{
-		"result": "测试结果",
+	expectedResult.Result.Meta = &mcp.Meta{
+		AdditionalFields: map[string]interface{}{
+			"result": "测试结果",
+		},
 	}
 
 	// 设置模拟客户端的预期行为

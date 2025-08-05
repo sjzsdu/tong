@@ -40,7 +40,8 @@ func NewClient(conn client.MCPClient, opts ...ClientOption) *Client {
 		opt(client)
 	}
 
-	client.Initialize(context.Background(), NewInitializeRequest())
+	// 不在构造函数中调用 Initialize，避免可能的死锁
+	// 由调用者决定何时初始化
 	return client
 }
 

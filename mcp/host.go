@@ -83,6 +83,10 @@ func NewHost(config *config.SchemaConfig) (*Host, error) {
 			continue
 		}
 
+		if (share.GetDebug()) {
+			fmt.Printf("正在初始化 MCP 服务 '%s'...\n", name)
+		}
+
 		mcpClient, err := createMCPClient(serverConfig)
 		if err != nil {
 			errMsg := fmt.Sprintf("MCP服务 '%s' 初始化失败: %v", name, err)
@@ -91,12 +95,20 @@ func NewHost(config *config.SchemaConfig) (*Host, error) {
 			continue
 		}
 
-		Host.Clients[name] = NewClient(mcpClient, WithHook(NewLogHook(name)))
+		client := NewClient(mcpClient, WithHook(NewLogHook(name)))
+		// 显式初始化客户端，如果初始化失败，记录错误但继续使用
+		_, initErr := client.Initialize(context.Background(), NewInitializeRequest())
+		if initErr != nil {
+			fmt.Printf("警告: MCP服务 '%s' 初始化请求失败: %v，但将继续使用该客户端\n", name, initErr)
+		}
+		Host.Clients[name] = client
 	}
 
-	// 如果所有客户端都初始化失败，返回错误
+	// 如果所有客户端都初始化失败，但不返回错误，而是打印警告信息
 	if len(Host.Clients) == 0 && len(initErrors) > 0 {
-		return nil, fmt.Errorf("所有 MCP 服务初始化失败:\n%s", strings.Join(initErrors, "\n"))
+		fmt.Printf("警告: 所有 MCP 服务初始化失败，将继续执行但功能可能受限:\n%s\n", strings.Join(initErrors, "\n"))
+		// 返回一个空的 Host 实例，而不是错误
+		return Host, nil
 	}
 
 	// 如果有部分客户端初始化失败，但至少有一个成功，只打印警告
