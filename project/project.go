@@ -240,29 +240,6 @@ func (p *Project) GetTotalNodes() int {
 	return p.root.CountNodes()
 }
 
-// GetAllFiles 返回项目中所有文件的相对路径
-func (p *Project) GetAllFiles() ([]string, error) {
-	if p.root == nil {
-		return nil, fmt.Errorf("project root is nil")
-	}
-
-	var files []string
-	traverser := NewTreeTraverser(p)
-	visitor := VisitorFunc(func(path string, node *Node, depth int) error {
-		if node.IsDir {
-			return nil
-		}
-		files = append(files, path)
-		return nil
-	})
-	err := traverser.TraverseTree(visitor)
-
-	if err != nil {
-		return nil, err
-	}
-	return files, nil
-}
-
 // ListFiles 返回项目中所有文件的名称（不包含路径）
 func (p *Project) ListFiles() ([]string, error) {
 	if p.root == nil {
@@ -410,20 +387,6 @@ func (p *Project) GetNodePath(node *Node) string {
 	}
 
 	return "/" + filepath.Join(path...)
-}
-
-// Traverse 便捷方法，使用前序遍历访问项目中的所有节点
-func (p *Project) Traverse(fn func(node *Node) error) error {
-	if p.root == nil {
-		return nil
-	}
-
-	traverser := NewTreeTraverser(p)
-	visitor := VisitorFunc(func(path string, node *Node, depth int) error {
-		return fn(node)
-	})
-
-	return traverser.TraverseTree(visitor)
 }
 
 // CreateFileNode 创建一个新文件节点，但不加载内容

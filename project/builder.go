@@ -33,13 +33,14 @@ func NewProject(rootPath string) *Project {
 		IsDir:    true,
 		Children: make(map[string]*Node),
 	}
-	
+
 	nodes := make(map[string]*Node)
 	nodes["/"] = root
-	
+
 	return &Project{
 		root:     root,
 		rootPath: rootPath,
+		inGit:    helper.IsGitSubdir(rootPath) || helper.IsGitRoot(rootPath),
 		nodes:    nodes,
 	}
 }
@@ -52,7 +53,7 @@ func BuildProjectTree(targetPath string, options helper.WalkDirOptions) (*Projec
 		doc.nodes = make(map[string]*Node)
 	}
 	doc.nodes["/"] = doc.root
-	
+
 	gitignoreRules := make(map[string][]string)
 	targetPath = filepath.Clean(targetPath)
 
@@ -90,8 +91,8 @@ func BuildProjectTree(targetPath string, options helper.WalkDirOptions) (*Projec
 
 			// 处理 .gitignore 规则
 			if !options.DisableGitIgnore {
-				rules, err := helper.ReadGitignore(path)
-				if err == nil && rules != nil {
+				rules, serr := helper.ReadGitignore(path)
+				if serr == nil && rules != nil {
 					gitignoreRules[path] = rules
 				}
 			}

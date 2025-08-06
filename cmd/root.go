@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/helper"
@@ -102,13 +101,5 @@ func IsGitRoot() bool {
 		fmt.Printf("failed to get target path: %v\n", err)
 		return false
 	}
-	// 检查 .git 目录是否存在
-	gitDir := filepath.Join(targetPath, ".git")
-	info, err := os.Stat(gitDir)
-	if err != nil {
-		return false
-	}
-
-	// 确认是目录而不是文件
-	return info.IsDir()
+	return helper.IsGitRoot(targetPath)
 }
