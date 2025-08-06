@@ -77,22 +77,22 @@ func GetProject() (*project.Project, error) {
 	}
 
 	// 构建项目树
-	doc, err := buildProjectTreeWithOptions(targetPath, options)
+	project, err := buildProjectTreeWithOptions(targetPath, options)
 	if err != nil {
 		fmt.Printf("%v\n", err)
 		return nil, err
 	}
-	return doc, nil
+	return project, nil
 }
 
 // 构建项目树并返回
 func buildProjectTreeWithOptions(targetPath string, options helper.WalkDirOptions) (*project.Project, error) {
 	// 构建项目树
-	doc, err := project.BuildProjectTree(targetPath, options)
+	project, err := project.BuildProjectTree(targetPath, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build project tree: %v", err)
 	}
-	return doc, nil
+	return project, nil
 }
 
 // IsGitRoot 判断指定路径是否为 git 项目的根目录
