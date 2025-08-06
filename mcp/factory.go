@@ -7,43 +7,61 @@ import (
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/helper"
+	"github.com/sjzsdu/tong/helper/coroutine"
 	"github.com/sjzsdu/tong/share"
 )
 
-func NewHost(config *config.SchemaConfig) (*Host, error) {
-	if config == nil {
+func NewHost(cfg *config.SchemaConfig) (*Host, error) {
+	if cfg == nil {
 		return nil, nil
 	}
 	if share.GetDebug() {
-		helper.PrintWithLabel("Mcp Host confg:", config)
+		helper.PrintWithLabel("Mcp Host confg:", cfg)
 	}
 
 	Host := &Host{
 		Clients: make(map[string]*Client),
 	}
 
-	for name, serverConfig := range config.MCPServers {
-		if serverConfig.Disabled {
-			continue
+	// 过滤出启用的服务器配置
+	enabledServers := make(map[string]config.MCPServerConfig)
+	for name, serverConfig := range cfg.MCPServers {
+		if !serverConfig.Disabled {
+			enabledServers[name] = serverConfig
 		}
+	}
 
+	// 使用MapDict并行创建和初始化客户端
+	ctx, cancel := context.WithTimeout(context.Background(), share.TIMEOUT_MCP)
+	defer cancel()
+	
+	results := coroutine.MapDict(ctx, 0, enabledServers, func(name string, serverConfig config.MCPServerConfig) (*Client, error) {
+		// 创建MCP客户端
 		mcpClient, err := createMCPClient(serverConfig)
 		if err != nil {
-			fmt.Printf("创建客户端 %s 失败: %v\n", name, err)
-			continue
+			return nil, fmt.Errorf("创建客户端失败: %v", err)
 		}
 
+		// 包装客户端
 		wrapClient := NewClient(mcpClient, WithHook(NewLogHook(name)))
-		// 添加超时初始化
-		ctx, cancel := context.WithTimeout(context.Background(), share.TIMEOUT_MCP)
-		defer cancel()
+		
+		// 初始化客户端
 		_, initErr := wrapClient.Initialize(ctx, NewInitializeRequest())
 		if initErr != nil {
-			fmt.Printf("警告：客户端 %s 初始化超时或失败: %v\n", name, initErr)
-			continue
+			return nil, fmt.Errorf("初始化超时或失败: %v", initErr)
 		}
 
-		Host.Clients[name] = wrapClient
+		return wrapClient, nil
+	})
+
+	// 处理结果
+	for name, result := range results {
+		if result.Err != nil {
+			fmt.Printf("客户端 %s 处理失败: %v\n", name, result.Err)
+			continue
+		}
+		
+		Host.Clients[name] = result.Value
 	}
 
 	return Host, nil

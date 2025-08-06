@@ -360,3 +360,147 @@ func TestProcessTreeBFS(t *testing.T) {
 	// 这里我们只能验证根节点在最前面
 	assert.Equal(t, "root", order[0], "根节点应该最先处理")
 }
+
+// TestMapDict 测试MapDict函数
+func TestMapDict(t *testing.T) {
+	// 准备测试数据
+	dict := map[string]int{
+		"a": 1,
+		"bb": 2,
+		"ccc": 3,
+		"dddd": 4,
+		"eeeee": 5,
+	}
+
+	// 定义映射函数：返回键的长度乘以值
+	mapFunc := func(k string, v int) (int, error) {
+		return len(k) * v, nil
+	}
+
+	// 执行MapDict操作
+	ctx := context.Background()
+	results := MapDict(ctx, 2, dict, mapFunc)
+
+	// 验证结果
+	assert.Equal(t, len(dict), len(results), "结果数量应与输入字典项数量相同")
+
+	// 验证每个键的结果
+	for k, v := range dict {
+		result, exists := results[k]
+		assert.True(t, exists, "应存在键 "+k+" 的结果")
+		assert.NoError(t, result.Err, "执行应该没有错误")
+		assert.Equal(t, len(k)*v, result.Value, "结果值应为键长度乘以值")
+	}
+}
+
+// TestMapDictWithError 测试MapDict函数处理错误的情况
+func TestMapDictWithError(t *testing.T) {
+	// 准备测试数据
+	dict := map[string]int{
+		"a": 1,
+		"bb": 2,
+		"error": 0, // 这个键会导致错误
+		"dddd": 4,
+		"eeeee": 5,
+	}
+
+	// 定义映射函数：对于键为"error"的项返回错误
+	mapFunc := func(k string, v int) (int, error) {
+		if k == "error" {
+			return 0, errors.New("处理错误")
+		}
+		return len(k) * v, nil
+	}
+
+	// 执行MapDict操作
+	ctx := context.Background()
+	results := MapDict(ctx, 2, dict, mapFunc)
+
+	// 验证结果
+	assert.Equal(t, len(dict), len(results), "结果数量应与输入字典项数量相同")
+
+	// 验证正常项的结果
+	for k, v := range dict {
+		result, exists := results[k]
+		assert.True(t, exists, "应存在键 "+k+" 的结果")
+		
+		if k == "error" {
+			assert.Error(t, result.Err, "错误键应返回错误")
+		} else {
+			assert.NoError(t, result.Err, "正常键不应有错误")
+			assert.Equal(t, len(k)*v, result.Value, "结果值应为键长度乘以值")
+		}
+	}
+}
+
+// TestEachDict 测试EachDict函数
+func TestEachDict(t *testing.T) {
+	// 准备测试数据
+	dict := map[string]int{
+		"a": 1,
+		"bb": 2,
+		"ccc": 3,
+		"dddd": 4,
+		"eeeee": 5,
+	}
+
+	// 使用原子计数器跟踪处理的项目数
+	var processedCount int32
+
+	// 定义处理函数
+	eachFunc := func(k string, v int) error {
+		// 模拟处理
+		time.Sleep(10 * time.Millisecond)
+		atomic.AddInt32(&processedCount, 1)
+		return nil
+	}
+
+	// 执行EachDict操作
+	ctx := context.Background()
+	errors := EachDict(ctx, 2, dict, eachFunc)
+
+	// 验证结果
+	assert.Equal(t, len(dict), len(errors), "错误映射长度应与输入字典项数量相同")
+	for _, err := range errors {
+		assert.NoError(t, err, "执行应该没有错误")
+	}
+
+	// 验证所有项目都被处理
+	assert.Equal(t, int32(len(dict)), atomic.LoadInt32(&processedCount), "所有项目都应被处理")
+}
+
+// TestEachDictWithError 测试EachDict函数处理错误的情况
+func TestEachDictWithError(t *testing.T) {
+	// 准备测试数据
+	dict := map[string]int{
+		"a": 1,
+		"bb": 2,
+		"error": 0, // 这个键会导致错误
+		"dddd": 4,
+		"eeeee": 5,
+	}
+
+	// 定义处理函数：对于键为"error"的项返回错误
+	eachFunc := func(k string, v int) error {
+		if k == "error" {
+			return errors.New("处理错误")
+		}
+		return nil
+	}
+
+	// 执行EachDict操作
+	ctx := context.Background()
+	errors := EachDict(ctx, 2, dict, eachFunc)
+
+	// 验证结果
+	assert.Equal(t, len(dict), len(errors), "错误映射长度应与输入字典项数量相同")
+
+	// 验证每个键的错误
+	for k, err := range errors {
+		if k == "error" {
+			assert.Error(t, err, "错误键应返回错误")
+		} else {
+			assert.NoError(t, err, "正常键不应有错误")
+		}
+	}
+}

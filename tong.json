@@ -1,7 +1,6 @@
 {
   "mcpServers": {
     "filesystem": {
-      "disabled": false,
       "timeout": 60,
       "command": "npx",
       "args": [
@@ -9,18 +8,14 @@
         "@modelcontextprotocol/server-filesystem",
         "."
       ],
-      "env": null,
       "transportType": "stdio"
     },
-    "web-search": {
-      "disabled": false,
-      "timeout": 60,
-      "command": "npx",
+    "git": {
+      "timeout": 300,
+      "command": "uvx",
       "args": [
-        "-y",
-        "@pskill9/web-search"
+        "mcp-server-git"
       ],
-      "env": [],
       "transportType": "stdio"
     }
   },

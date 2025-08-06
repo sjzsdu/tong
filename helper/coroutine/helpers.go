@@ -72,3 +72,61 @@ func Each[T any](ctx context.Context, maxWorkers int, items []T, eachFunc func(T
 
 	return ExecuteWithoutResult(ctx, maxWorkers, works)
 }
+
+// MapDict 并行执行字典的map操作，将输入字典中的每个键值对应用函数并返回结果
+func MapDict[K comparable, V, R any](ctx context.Context, maxWorkers int, dict map[K]V, mapFunc func(K, V) (R, error)) map[K]Result[R] {
+	if maxWorkers <= 0 {
+		maxWorkers = DefaultMaxWorkers()
+	}
+
+	// 创建工作函数切片
+	works := make([]WorkFunc[R], 0, len(dict))
+	// 保存键的映射，用于后续关联结果
+	keyMap := make(map[int]K)
+	
+	i := 0
+	for k, v := range dict {
+		// 捕获循环变量
+		capturedKey := k
+		capturedValue := v
+		works = append(works, func() (R, error) {
+			return mapFunc(capturedKey, capturedValue)
+		})
+		keyMap[i] = capturedKey
+		i++
+	}
+
+	// 创建协程池并执行
+	pool := NewCoroutinePool[R](maxWorkers)
+	results := pool.Execute(ctx, works)
+
+	// 将结果与原始键关联
+	resultMap := make(map[K]Result[R], len(results))
+	for _, result := range results {
+		key := keyMap[result.Index]
+		resultMap[key] = result
+	}
+
+	return resultMap
+}
+
+// EachDict 并行执行字典的forEach操作，对输入字典中的每个键值对应用函数
+func EachDict[K comparable, V any](ctx context.Context, maxWorkers int, dict map[K]V, eachFunc func(K, V) error) map[K]error {
+	if maxWorkers <= 0 {
+		maxWorkers = DefaultMaxWorkers()
+	}
+
+	// 使用MapDict实现，但忽略返回值
+	results := MapDict(ctx, maxWorkers, dict, func(k K, v V) (struct{}, error) {
+		err := eachFunc(k, v)
+		return struct{}{}, err
+	})
+
+	// 提取错误信息
+	errorMap := make(map[K]error, len(results))
+	for k, result := range results {
+		errorMap[k] = result.Err
+	}
+
+	return errorMap
+}
