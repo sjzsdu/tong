@@ -3,121 +3,13 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"strings"
 
-	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/sjzsdu/tong/config"
-	"github.com/sjzsdu/tong/helper"
-	"github.com/sjzsdu/tong/share"
 	"github.com/tmc/langchaingo/tools"
 )
 
 type Host struct {
 	Clients map[string]*Client
-}
-
-func createMCPClient(config config.MCPServerConfig) (client.MCPClient, error) {
-	switch config.TransportType {
-	case "sse":
-		return client.NewSSEMCPClient(config.Url)
-	case "stdio":
-		// 检查命令是否存在
-		if !helper.CommandExists(config.Command) {
-			return nil, fmt.Errorf("命令 '%s' 未安装或不在系统路径中，请先安装该命令", config.Command)
-		}
-		
-		// 创建客户端并捕获可能的错误
-		var mcpClient client.MCPClient
-		var clientErr error
-		
-		// 使用 recover 捕获可能的 panic
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					clientErr = fmt.Errorf("创建 MCP 客户端时发生错误: %v", r)
-				}
-			}()
-			
-			// 正确处理两个返回值
-			var clientInstance *client.Client
-			var err error
-			clientInstance, err = client.NewStdioMCPClient(
-				config.Command,
-				config.Env,
-				config.Args...,
-			)
-			if err != nil {
-				clientErr = err
-			} else {
-				// 将 *client.Client 类型转换为 client.MCPClient 接口类型
-				mcpClient = clientInstance
-			}
-		}()
-		
-		if clientErr != nil {
-			return nil, clientErr
-		}
-		return mcpClient, nil
-	default:
-		return nil, fmt.Errorf("不支持的传输类型: %s", config.TransportType)
-	}
-}
-
-func NewHost(config *config.SchemaConfig) (*Host, error) {
-	if config == nil {
-		return nil, nil
-	}
-	if share.GetDebug() {
-		helper.PrintWithLabel("Mcp Host confg:", config)
-	}
-
-	Host := &Host{
-		Clients: make(map[string]*Client),
-	}
-
-	var initErrors []string
-
-	for name, serverConfig := range config.MCPServers {
-		if serverConfig.Disabled {
-			continue
-		}
-
-		if (share.GetDebug()) {
-			fmt.Printf("正在初始化 MCP 服务 '%s'...\n", name)
-		}
-
-		mcpClient, err := createMCPClient(serverConfig)
-		if err != nil {
-			errMsg := fmt.Sprintf("MCP服务 '%s' 初始化失败: %v", name, err)
-			initErrors = append(initErrors, errMsg)
-			fmt.Printf("%s\n", errMsg)
-			continue
-		}
-
-		client := NewClient(mcpClient, WithHook(NewLogHook(name)))
-		// 显式初始化客户端，如果初始化失败，记录错误但继续使用
-		_, initErr := client.Initialize(context.Background(), NewInitializeRequest())
-		if initErr != nil {
-			fmt.Printf("警告: MCP服务 '%s' 初始化请求失败: %v，但将继续使用该客户端\n", name, initErr)
-		}
-		Host.Clients[name] = client
-	}
-
-	// 如果所有客户端都初始化失败，但不返回错误，而是打印警告信息
-	if len(Host.Clients) == 0 && len(initErrors) > 0 {
-		fmt.Printf("警告: 所有 MCP 服务初始化失败，将继续执行但功能可能受限:\n%s\n", strings.Join(initErrors, "\n"))
-		// 返回一个空的 Host 实例，而不是错误
-		return Host, nil
-	}
-
-	// 如果有部分客户端初始化失败，但至少有一个成功，只打印警告
-	if len(initErrors) > 0 {
-		fmt.Printf("警告: %d 个 MCP 服务初始化失败，%d 个成功初始化\n", 
-			len(initErrors), len(Host.Clients))
-	}
-
-	return Host, nil
 }
 
 func (c *Host) Ping(ctx context.Context) error {

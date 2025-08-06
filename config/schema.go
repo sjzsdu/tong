@@ -12,14 +12,19 @@ import (
 
 // MCPServerConfig 单个 MCP 服务器的配置
 type MCPServerConfig struct {
-	Disabled      bool     `json:"disabled"`
-	Timeout       int      `json:"timeout"`
-	Command       string   `json:"command"`
-	Args          []string `json:"args"`
-	Env           []string `json:"env"`
+	Disabled      bool     `json:"disabled,omitempty"`
+	Timeout       int      `json:"timeout,omitempty"`
+	Command       string   `json:"command,omitempty"`
+	Args          []string `json:"args,omitempty"`
+	Env           []string `json:"env,omitempty"`
 	TransportType string   `json:"transportType"`
 	Url           string   `json:"url,omitempty"`
 	AutoApprove   []string `json:"autoApprove,omitempty"`
+
+	// OAuth 相关配置
+	ClientID     string   `json:"clientId,omitempty"`
+	ClientSecret string   `json:"clientSecret,omitempty"`
+	Scopes       []string `json:"scopes,omitempty"`
 }
 
 type LLMConfig struct {

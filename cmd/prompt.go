@@ -16,9 +16,9 @@ var promptCmd = &cobra.Command{
 }
 
 func init() {
-	promptCmd.Flags().StringVar(&promptName, "name", "", lang.T("Prompt name"))
-	promptCmd.Flags().StringVar(&content, "content", "", lang.T("Prompt content"))
-	promptCmd.Flags().StringVar(&contentFile, "file", "", lang.T("Read content from file"))
+	promptCmd.Flags().StringVarP(&promptName, "name", "p", "", lang.T("Prompt name"))
+	promptCmd.Flags().StringVarP(&content, "content", "c", "", lang.T("Prompt content"))
+	promptCmd.Flags().StringVarP(&contentFile, "file", "f", "", lang.T("Read content from file"))
 	rootCmd.AddCommand(promptCmd)
 }
 

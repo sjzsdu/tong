@@ -29,13 +29,15 @@ func init() {
 	agentCmd.Flags().StringVarP(&configFile, "config", "c", "tong.json", lang.T("Config file"))
 	agentCmd.Flags().StringVarP(&workDir, "directory", "d", ".", lang.T("Work directory path"))
 	agentCmd.Flags().StringVarP(&repoURL, "repository", "r", "", lang.T("Git repository URL to clone and pack"))
-	promptCmd.Flags().StringVar(&promptName, "prompt", "coder", lang.T("Prompt name"))
+	agentCmd.Flags().StringVarP(&promptName, "prompt", "p", "", lang.T("Prompt name"))
 
 	rootCmd.AddCommand(agentCmd)
 }
 
 func runAgent(cmd *cobra.Command, args []string) {
-
+	if promptName == "" {
+		promptName = "coder"
+	}
 	// 获取配置
 	config, err := GetConfig()
 	if err != nil {
@@ -55,7 +57,7 @@ func runAgent(cmd *cobra.Command, args []string) {
 	host, err := mcp.NewHost(config)
 	if err != nil {
 		// 如果 MCP 初始化失败，打印错误但继续执行
-		fmt.Printf("警告: MCP 服务初始化失败: %v\n将继续执行但功能可能受限\n", err)
+		fmt.Printf("警告: MCP 服务初始化失败: %v\n", err)
 		// 创建一个空的 Host 实例
 		host = &mcp.Host{Clients: make(map[string]*mcp.Client)}
 	}
