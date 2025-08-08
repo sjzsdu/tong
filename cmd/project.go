@@ -3,19 +3,42 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/sjzsdu/tong/cmd/project"
 	"github.com/sjzsdu/tong/lang"
 	"github.com/spf13/cobra"
 )
 
+
+
 var projectCmd = &cobra.Command{
 	Use:   "project",
-	Short: lang.T("Project files"),
-	Long:  lang.T("Project files with specified extensions into a single output file"),
-	Run:   runproject,
+	Short: "项目管理工具",
+	Long: `project 命令提供了一系列项目管理功能，包括文件树状结构显示、项目打包等。
+
+可用的子命令：
+  tree    显示项目目录的树状结构
+
+示例：
+  tong project tree                    # 显示当前目录的树状结构
+  tong project tree --stats            # 显示树状结构和统计信息`,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// 在执行任何子命令之前，先创建项目实例
+		proj, err := GetProject()
+		if err != nil {
+			fmt.Printf("创建项目实例失败: %v\n", err)
+			return
+		}
+		// 将项目实例设置到子命令的 project 包中
+		project.SetSharedProject(proj)
+	},
+	Run: runproject,
 }
 
 func init() {
 	rootCmd.AddCommand(projectCmd)
+
+	// 添加子命令
+	projectCmd.AddCommand(project.TreeCmd)
 
 	projectCmd.PersistentFlags().StringVarP(&workDir, "directory", "d", ".", lang.T("Work directory path"))
 	projectCmd.PersistentFlags().StringSliceVarP(&extensions, "extensions", "e", []string{"*"}, lang.T("File extensions to include"))
@@ -26,15 +49,9 @@ func init() {
 }
 
 func runproject(cmd *cobra.Command, args []string) {
-	_, err := GetProject()
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		return
-	}
-
-	// 检查参数是否存在
 	if len(args) == 0 {
-		fmt.Println("请指定操作类型: pack, code, deps, quality, search, blame")
+		// 如果没有参数，显示帮助信息
+		cmd.Help()
 		return
 	}
 
