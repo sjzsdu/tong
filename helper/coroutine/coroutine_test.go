@@ -225,11 +225,11 @@ type TestNode struct {
 	children []TreeNode
 }
 
-func (n *TestNode) ID() string {
+func (n *TestNode) GetID() string {
 	return n.id
 }
 
-func (n *TestNode) Children() []TreeNode {
+func (n *TestNode) GetChildren() []TreeNode {
 	return n.children
 }
 
@@ -247,7 +247,7 @@ func TestProcessTree(t *testing.T) {
 
 	// 定义处理函数：返回节点ID的长度
 	processFunc := func(node TreeNode) (int, error) {
-		return len(node.ID()), nil
+		return len(node.GetID()), nil
 	}
 
 	// 执行树处理
@@ -280,10 +280,10 @@ func TestProcessTreeWithError(t *testing.T) {
 
 	// 定义处理函数：对于ID为"error"的节点返回错误
 	processFunc := func(node TreeNode) (int, error) {
-		if node.ID() == "error" {
+		if node.GetID() == "error" {
 			return 0, errors.New("节点处理错误")
 		}
-		return len(node.ID()), nil
+		return len(node.GetID()), nil
 	}
 
 	// 执行树处理
@@ -324,8 +324,8 @@ func TestProcessTreeBFS(t *testing.T) {
 
 	// 定义处理函数：记录处理顺序并返回节点ID
 	processFunc := func(node TreeNode) (string, error) {
-		processOrder <- node.ID()
-		return node.ID(), nil
+		processOrder <- node.GetID()
+		return node.GetID(), nil
 	}
 
 	// 执行树处理
@@ -365,10 +365,10 @@ func TestProcessTreeBFS(t *testing.T) {
 func TestMapDict(t *testing.T) {
 	// 准备测试数据
 	dict := map[string]int{
-		"a": 1,
-		"bb": 2,
-		"ccc": 3,
-		"dddd": 4,
+		"a":     1,
+		"bb":    2,
+		"ccc":   3,
+		"dddd":  4,
 		"eeeee": 5,
 	}
 
@@ -397,10 +397,10 @@ func TestMapDict(t *testing.T) {
 func TestMapDictWithError(t *testing.T) {
 	// 准备测试数据
 	dict := map[string]int{
-		"a": 1,
-		"bb": 2,
+		"a":     1,
+		"bb":    2,
 		"error": 0, // 这个键会导致错误
-		"dddd": 4,
+		"dddd":  4,
 		"eeeee": 5,
 	}
 
@@ -423,7 +423,7 @@ func TestMapDictWithError(t *testing.T) {
 	for k, v := range dict {
 		result, exists := results[k]
 		assert.True(t, exists, "应存在键 "+k+" 的结果")
-		
+
 		if k == "error" {
 			assert.Error(t, result.Err, "错误键应返回错误")
 		} else {
@@ -437,10 +437,10 @@ func TestMapDictWithError(t *testing.T) {
 func TestEachDict(t *testing.T) {
 	// 准备测试数据
 	dict := map[string]int{
-		"a": 1,
-		"bb": 2,
-		"ccc": 3,
-		"dddd": 4,
+		"a":     1,
+		"bb":    2,
+		"ccc":   3,
+		"dddd":  4,
 		"eeeee": 5,
 	}
 
@@ -473,10 +473,10 @@ func TestEachDict(t *testing.T) {
 func TestEachDictWithError(t *testing.T) {
 	// 准备测试数据
 	dict := map[string]int{
-		"a": 1,
-		"bb": 2,
+		"a":     1,
+		"bb":    2,
 		"error": 0, // 这个键会导致错误
-		"dddd": 4,
+		"dddd":  4,
 		"eeeee": 5,
 	}
 

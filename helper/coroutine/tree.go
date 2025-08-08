@@ -19,7 +19,7 @@ func ProcessTree[T any](ctx context.Context, maxWorkers int, root TreeNode, proc
 		node := queue[0]
 		queue = queue[1:]
 
-		children := node.Children()
+		children := node.GetChildren()
 		for _, child := range children {
 			nodes = append(nodes, child)
 			queue = append(queue, child)
@@ -46,7 +46,7 @@ func ProcessTree[T any](ctx context.Context, maxWorkers int, root TreeNode, proc
 				Value T
 				Err   error
 			}{
-				ID:    capturedNode.ID(),
+				ID:    capturedNode.GetID(),
 				Value: value,
 				Err:   err,
 			}, nil
@@ -121,7 +121,7 @@ func ProcessTreeBFS[T any](ctx context.Context, maxWorkers int, root TreeNode, p
 					Value T
 					Err   error
 				}{
-					ID:    capturedNode.ID(),
+					ID:    capturedNode.GetID(),
 					Value: value,
 					Err:   err,
 				}, nil
@@ -160,9 +160,9 @@ func ProcessTreeBFS[T any](ctx context.Context, maxWorkers int, root TreeNode, p
 
 			// 查找当前节点对应的原始节点，以获取其子节点
 			for _, node := range currentLayer {
-				if node.ID() == result.Value.ID {
+				if node.GetID() == result.Value.ID {
 					// 将子节点添加到下一层
-					nextLayer = append(nextLayer, node.Children()...)
+					nextLayer = append(nextLayer, node.GetChildren()...)
 					break
 				}
 			}

@@ -29,7 +29,7 @@ var excludedDirs = map[string]bool{
 func NewProject(rootPath string) *Project {
 	root := &Node{
 		Name:     "/",
-		Path:     rootPath,
+		Path:     "/",
 		IsDir:    true,
 		Children: make(map[string]*Node),
 	}
@@ -37,12 +37,17 @@ func NewProject(rootPath string) *Project {
 	nodes := make(map[string]*Node)
 	nodes["/"] = root
 
-	return &Project{
+	project := &Project{
 		root:     root,
 		rootPath: rootPath,
 		inGit:    helper.IsGitSubdir(rootPath) || helper.IsGitRoot(rootPath),
 		nodes:    nodes,
 	}
+
+	// 注册项目实例到全局注册表
+	RegisterProject(root, project)
+
+	return project
 }
 
 // BuildProjectTree 构建项目树
@@ -129,7 +134,7 @@ func BuildProjectTree(targetPath string, options helper.WalkDirOptions) (*Projec
 				return nil
 			}
 			// 创建目录节点
-			return doc.CreateDir(projPath, info)
+			return doc.CreateDir(projPath)
 		}
 
 		// 检查文件扩展名
@@ -155,10 +160,10 @@ func BuildProjectTree(targetPath string, options helper.WalkDirOptions) (*Projec
 			if err != nil {
 				return nil // 跳过无法读取的文件
 			}
-			return doc.CreateFileWithContent(projPath, content, info)
+			return doc.CreateFileWithContent(projPath, content)
 		} else {
 			// 只创建节点，不加载内容
-			return doc.CreateFileNode(projPath, info)
+			return doc.CreateFileNode(projPath)
 		}
 	})
 

@@ -13,9 +13,9 @@ type Result[T any] struct {
 // TreeNode 定义了树形结构的节点接口
 type TreeNode interface {
 	// Children 返回当前节点的所有子节点
-	Children() []TreeNode
+	GetChildren() []TreeNode
 	// ID 返回节点的唯一标识符，用于在结果中标识节点
-	ID() string
+	GetID() string
 }
 
 // TreeResult 定义了树形结构处理的结果
