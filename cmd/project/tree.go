@@ -3,6 +3,7 @@ package project
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/sjzsdu/tong/project/tree"
 	"github.com/spf13/cobra"
@@ -54,8 +55,24 @@ func runTree(cmd *cobra.Command, args []string) {
 		targetPath = args[0]
 	}
 
+	// 获取共享项目实例
+	if sharedProject == nil {
+		fmt.Printf("错误: 未找到共享的项目实例\n")
+		os.Exit(1)
+	}
+
+	// 基于项目根路径来处理目标路径
+	// 如果targetPath是相对路径，则相对于项目根路径进行解析
+	var finalTargetPath string
+	if filepath.IsAbs(targetPath) {
+		finalTargetPath = targetPath
+	} else {
+		// 将相对路径基于项目根路径进行解析
+		finalTargetPath = filepath.Join(sharedProject.GetRootPath(), targetPath)
+	}
+
 	// 使用通用函数获取目标节点
-	targetNode, err := GetTargetNode(targetPath)
+	targetNode, err := GetTargetNode(finalTargetPath)
 	if err != nil {
 		fmt.Printf("%v\n", err)
 		os.Exit(1)
