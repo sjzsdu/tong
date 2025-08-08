@@ -75,6 +75,98 @@ type VisitorFunc func(path string, node *Node, depth int) error
 - **查找节点**：`FindNode`, `findNodeDirect`
 - **列出文件**：`ListFiles`
 - **遍历节点**：`Visit`, `VisitAll`
+- **多协程遍历**：`ProcessConcurrent`, `ProcessConcurrentBFS`, `ProcessConcurrentTyped`, `ProcessConcurrentBFSTyped`
+
+## 多协程遍历功能
+
+### 功能概述
+
+基于 `coroutine` 包的多协程工具，为 `Project` 和 `Node` 提供了高性能的并行遍历功能。支持深度优先搜索（DFS）和广度优先搜索（BFS）两种遍历策略，以及泛型和非泛型两种处理方式。
+
+### 核心组件
+
+#### TreeNode 接口实现
+
+`Node` 结构体直接实现了 `coroutine.TreeNode` 接口，无需额外的适配器：
+
+```go
+// Node 直接实现 TreeNode 接口
+func (n *Node) GetChildren() []coroutine.TreeNode {
+    result := make([]coroutine.TreeNode, len(n.Children))
+    for i, child := range n.Children {
+        result[i] = child
+    }
+    return result
+}
+
+func (n *Node) GetID() string {
+    return n.Name
+}
+
+// 如果需要获取 []*Node 类型的子节点，可以使用：
+func (n *Node) GetChildrenNodes() []*Node {
+    return n.Children
+}
+```
+
+### 可用方法
+
+#### Node 级别的多协程遍历
+
+1. **ProcessConcurrent** - DFS 并行遍历
+2. **ProcessConcurrentBFS** - BFS 并行遍历  
+3. **ProcessConcurrentTyped** - DFS 泛型并行遍历
+4. **ProcessConcurrentBFSTyped** - BFS 泛型并行遍历
+
+#### Project 级别的多协程遍历
+
+1. **ProcessConcurrent** - 项目 DFS 并行遍历
+2. **ProcessConcurrentBFS** - 项目 BFS 并行遍历
+3. **ProcessProjectConcurrentTyped** - 项目 DFS 泛型并行遍历（函数）
+4. **ProcessProjectConcurrentBFSTyped** - 项目 BFS 泛型并行遍历（函数）
+
+### 使用场景
+
+1. **文件哈希计算**：并行计算项目中所有文件的哈希值
+2. **内容搜索**：在多个文件中并行搜索特定内容
+3. **统计分析**：并行收集文件大小、行数等统计信息
+4. **文件验证**：并行验证文件完整性和格式
+5. **代码分析**：并行分析代码结构和依赖关系
+
+### 性能优势
+
+- **并行处理**：充分利用多核 CPU 资源
+- **可配置并发度**：根据系统资源调整工作协程数量
+- **内存优化**：支持流式处理，避免内存溢出
+- **错误隔离**：单个节点处理失败不影响其他节点
+
+## 并发安全优化
+
+### 锁策略优化
+
+1. **细粒度锁控制**：
+   - 每个 `Node` 和 `Project` 都有独立的读写锁
+   - 避免全局锁导致的性能瓶颈
+   - 支持并发读取操作
+
+2. **读写锁分离**：
+   - 读操作使用读锁，允许多个并发读取
+   - 写操作使用写锁，确保数据一致性
+   - 优化了高读取频率的场景
+
+### 死锁预防
+
+1. **锁顺序规范**：
+   - 统一的锁获取顺序：先父节点，后子节点
+   - 避免循环等待导致的死锁
+
+2. **锁范围最小化**：
+   - 缩短锁持有时间
+   - 避免在持有锁时进行耗时操作
+
+3. **无锁操作优化**：
+   - 对于只读操作，尽量减少锁的使用
+   - 使用原子操作处理简单状态变更
 
 ### 文件系统同步
 
@@ -164,6 +256,52 @@ err = proj.SaveToFS()
 if err != nil {
     log.Fatal(err)
 }
+
+// 多协程遍历示例
+ctx := context.Background()
+
+// 并行计算所有文件的哈希值
+hashResults := ProcessProjectConcurrentTyped(ctx, proj, 4, func(node *Node) (string, error) {
+    if node.IsDir {
+        return "", nil // 目录不计算哈希
+    }
+    
+    if err := node.EnsureContentLoaded(); err != nil {
+        return "", err
+    }
+    
+    hash := md5.Sum(node.Content)
+    return fmt.Sprintf("%x", hash), nil
+})
+
+for path, result := range hashResults {
+    if result.Err != nil {
+        fmt.Printf("Error processing %s: %v\n", path, result.Err)
+    } else if result.Value != "" {
+        fmt.Printf("File %s: %s\n", path, result.Value)
+    }
+}
+
+// 并行搜索文件内容
+searchResults := proj.ProcessConcurrent(ctx, 8, func(node *Node) (interface{}, error) {
+    if node.IsDir || filepath.Ext(node.Name) != ".go" {
+        return nil, nil
+    }
+    
+    if err := node.EnsureContentLoaded(); err != nil {
+        return nil, err
+    }
+    
+    content := string(node.Content)
+    if strings.Contains(content, "func") {
+        return map[string]interface{}{
+            "file": node.Path,
+            "matches": strings.Count(content, "func"),
+        }, nil
+    }
+    
+    return nil, nil
+})
 ```
 
 ## 扩展性
@@ -186,3 +324,8 @@ if err != nil {
 3. 支持更复杂的文件过滤和模式匹配
 4. 优化大型项目的内存使用
 5. 增加事务支持，确保操作的原子性
+6. **多协程功能增强**：
+   - 支持动态调整并发度
+   - 增加进度回调和取消机制
+   - 优化内存使用和垃圾回收
+   - 支持分布式处理

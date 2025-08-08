@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/sjzsdu/tong/helper/coroutine"
 )
 
 // CalculateHash 计算节点的哈希值
@@ -453,8 +455,20 @@ func (n *Node) ListFiles() []string {
 	return fileNames
 }
 
-// GetChildren 获取所有子节点（返回具体类型）
-func (n *Node) GetChildren() []*Node {
+// GetChildren 获取所有子节点（实现TreeNode接口）
+func (n *Node) GetChildren() []coroutine.TreeNode {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	children := make([]coroutine.TreeNode, 0, len(n.Children))
+	for _, child := range n.Children {
+		children = append(children, child)
+	}
+	return children
+}
+
+// GetChildrenNodes 获取所有子节点（返回具体类型）
+func (n *Node) GetChildrenNodes() []*Node {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 
