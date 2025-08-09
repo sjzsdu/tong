@@ -10,6 +10,10 @@ type Option func(*Project)
 
 // 基础信息相关方法
 
+func (p *Project) Root() *Node {
+	return p.root
+}
+
 // GetRootPath 获取项目根路径
 func (p *Project) GetRootPath() string {
 	return p.rootPath

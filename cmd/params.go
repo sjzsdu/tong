@@ -11,7 +11,6 @@ import (
 var (
 	workDir         string
 	extensions      []string
-	outputFile      string
 	excludePatterns []string
 	repoURL         string
 	skipGitIgnore   bool

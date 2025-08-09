@@ -8,8 +8,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
-
 var projectCmd = &cobra.Command{
 	Use:   "project",
 	Short: "项目管理工具",
@@ -39,10 +37,10 @@ func init() {
 
 	// 添加子命令
 	projectCmd.AddCommand(project.TreeCmd)
+	projectCmd.AddCommand(project.PackCmd)
 
 	projectCmd.PersistentFlags().StringVarP(&workDir, "directory", "d", ".", lang.T("Work directory path"))
 	projectCmd.PersistentFlags().StringSliceVarP(&extensions, "extensions", "e", []string{"*"}, lang.T("File extensions to include"))
-	projectCmd.PersistentFlags().StringVarP(&outputFile, "out", "o", "", lang.T("Output file name"))
 	projectCmd.PersistentFlags().StringSliceVarP(&excludePatterns, "exclude", "x", []string{}, lang.T("Glob patterns to exclude"))
 	projectCmd.PersistentFlags().StringVarP(&repoURL, "repository", "r", "", lang.T("Git repository URL to clone and pack"))
 	projectCmd.PersistentFlags().BoolVarP(&skipGitIgnore, "no-gitignore", "n", false, lang.T("Disable .gitignore rules"))
