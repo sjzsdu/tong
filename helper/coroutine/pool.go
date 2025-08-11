@@ -49,10 +49,21 @@ func (p *CoroutinePool[T]) Execute(ctx context.Context, works []WorkFunc[T]) []R
 	var wg sync.WaitGroup
 
 	// 启动工作协程
-	for i := 0; i < p.maxWorkers && i < len(works); i++ {
+	workerCount := p.maxWorkers
+	if workerCount > len(works) {
+		workerCount = len(works)
+	}
+
+	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
 		go p.worker(ctx, &wg, workChan, works)
 	}
+
+	// 启动一个协程来监控上下文取消
+	go func() {
+		<-ctx.Done()
+		close(workChan)
+	}()
 
 	// 发送工作索引到通道
 	for i := 0; i < len(works); i++ {
@@ -60,9 +71,8 @@ func (p *CoroutinePool[T]) Execute(ctx context.Context, works []WorkFunc[T]) []R
 		case workChan <- i:
 			// 成功发送工作
 		case <-ctx.Done():
-			// 上下文被取消
-			close(workChan)
-			return p.results
+			// 上下文已取消，退出循环
+			break
 		}
 	}
 

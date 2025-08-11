@@ -16,6 +16,13 @@ func ProcessTree[T any](ctx context.Context, maxWorkers int, root TreeNode, proc
 	queue = append(queue, root)
 
 	for len(queue) > 0 {
+		// 检查上下文是否已取消
+		select {
+		case <-ctx.Done():
+			return make(map[string]TreeResult[T])
+		default:
+		}
+
 		node := queue[0]
 		queue = queue[1:]
 
@@ -40,6 +47,22 @@ func ProcessTree[T any](ctx context.Context, maxWorkers int, root TreeNode, proc
 			Value T
 			Err   error
 		}, error) {
+			// 检查上下文是否已取消
+			select {
+			case <-ctx.Done():
+				var zero T
+				return struct {
+					ID    string
+					Value T
+					Err   error
+				}{
+					ID:    capturedNode.GetID(),
+					Value: zero,
+					Err:   ctx.Err(),
+				}, nil
+			default:
+			}
+
 			value, err := processFunc(capturedNode)
 			return struct {
 				ID    string
@@ -64,6 +87,13 @@ func ProcessTree[T any](ctx context.Context, maxWorkers int, root TreeNode, proc
 	// 转换为map结果
 	resultMap := make(map[string]TreeResult[T], len(results))
 	for _, result := range results {
+		// 检查上下文是否已取消
+		select {
+		case <-ctx.Done():
+			return make(map[string]TreeResult[T])
+		default:
+		}
+
 		if result.Err != nil {
 			// 如果执行工作函数时出错，记录错误
 			var zero T
@@ -97,43 +127,57 @@ func ProcessTreeBFS[T any](ctx context.Context, maxWorkers int, root TreeNode, p
 		return resultMap
 	}
 
+	// 创建协程池（只创建一次）
+	pool := NewCoroutinePool[struct {
+		ID       string
+		Value    T
+		Err      error
+		Children []TreeNode
+	}](maxWorkers)
+
 	// 使用BFS按层处理
 	currentLayer := []TreeNode{root}
 
 	for len(currentLayer) > 0 {
+		// 检查上下文是否已取消
+		select {
+		case <-ctx.Done():
+			return resultMap
+		default:
+		}
+
 		// 为当前层创建工作函数
 		works := make([]WorkFunc[struct {
-			ID    string
-			Value T
-			Err   error
+			ID       string
+			Value    T
+			Err      error
+			Children []TreeNode
 		}], len(currentLayer))
 		for i, node := range currentLayer {
 			// 捕获循环变量
 			capturedNode := node
 			works[i] = func() (struct {
-				ID    string
-				Value T
-				Err   error
+				ID       string
+				Value    T
+				Err      error
+				Children []TreeNode
 			}, error) {
 				value, err := processFunc(capturedNode)
 				return struct {
-					ID    string
-					Value T
-					Err   error
+					ID       string
+					Value    T
+					Err      error
+					Children []TreeNode
 				}{
-					ID:    capturedNode.GetID(),
-					Value: value,
-					Err:   err,
+					ID:       capturedNode.GetID(),
+					Value:    value,
+					Err:      err,
+					Children: capturedNode.GetChildren(),
 				}, nil
 			}
 		}
 
 		// 执行当前层的处理
-		pool := NewCoroutinePool[struct {
-			ID    string
-			Value T
-			Err   error
-		}](maxWorkers)
 		results := pool.Execute(ctx, works)
 
 		// 收集结果并准备下一层
@@ -158,14 +202,8 @@ func ProcessTreeBFS[T any](ctx context.Context, maxWorkers int, root TreeNode, p
 				NodeID: result.Value.ID,
 			}
 
-			// 查找当前节点对应的原始节点，以获取其子节点
-			for _, node := range currentLayer {
-				if node.GetID() == result.Value.ID {
-					// 将子节点添加到下一层
-					nextLayer = append(nextLayer, node.GetChildren()...)
-					break
-				}
-			}
+			// 直接添加子节点到下一层，避免二次查找
+			nextLayer = append(nextLayer, result.Value.Children...)
 		}
 
 		// 更新当前层为下一层
