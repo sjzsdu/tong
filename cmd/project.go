@@ -17,6 +17,7 @@ var projectCmd = &cobra.Command{
   tree    显示项目目录的树状结构
   pack    打包项目文件
   search  搜索项目节点
+  blame   统计作者/时间粒度的提交变更
 
 示例：
   tong project tree                    # 显示当前目录的树状结构
@@ -41,6 +42,7 @@ func init() {
 	projectCmd.AddCommand(project.TreeCmd)
 	projectCmd.AddCommand(project.PackCmd)
 	projectCmd.AddCommand(project.SearchCmd)
+	projectCmd.AddCommand(project.BlameCmd)
 
 	projectCmd.PersistentFlags().StringVarP(&workDir, "directory", "d", ".", lang.T("Work directory path"))
 	projectCmd.PersistentFlags().StringSliceVarP(&extensions, "extensions", "e", []string{"*"}, lang.T("File extensions to include"))
