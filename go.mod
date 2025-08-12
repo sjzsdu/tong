@@ -11,7 +11,7 @@ require (
 	github.com/guptarohit/asciigraph v0.7.3
 	github.com/mark3labs/mcp-go v0.37.0
 	github.com/nicksnyder/go-i18n/v2 v2.5.1
-	github.com/sjzsdu/langchaingo-cn v1.0.2
+	github.com/sjzsdu/langchaingo-cn v1.0.3
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
 	github.com/tmc/langchaingo v0.1.13

@@ -32,11 +32,16 @@ type LLMConfig struct {
 	Params map[string]interface{} `json:"params"`
 }
 
+type EmbeddingConfig struct {
+	Type   llms.EmbeddingType     `json:"type"`
+	Params map[string]interface{} `json:"params"`
+}
+
 // MCPConfig MCP 配置文件结构
 type SchemaConfig struct {
 	MCPServers   map[string]MCPServerConfig `json:"mcpServers"`
 	MasterLLM    LLMConfig                  `json:"masterLLM"`
-	EmbeddingLLM LLMConfig                  `json:"embeddingLLM"`
+	EmbeddingLLM EmbeddingConfig            `json:"embeddingLLM"`
 }
 
 // LoadMCPConfig 从指定目录加载 MCP 配置
@@ -149,8 +154,8 @@ func DefaultSchemaConfig() *SchemaConfig {
 			Type:   llms.LLMType(GetConfigWithDefault("MASTER_LLM", string(llms.DeepSeekLLM))),
 			Params: map[string]interface{}{},
 		},
-		EmbeddingLLM: LLMConfig{
-			Type:   llms.DeepSeekLLM,
+		EmbeddingLLM: EmbeddingConfig{
+			Type:   llms.EmbeddingType(GetConfigWithDefault("EMBEDDING_LLM", string(llms.QwenEmbedding))),
 			Params: map[string]interface{}{},
 		},
 	}

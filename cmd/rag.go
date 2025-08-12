@@ -37,7 +37,7 @@ var ragCmd = &cobra.Command{
 func init() {
 	// 获取当前目录名称作为默认集合名称
 	defaultCollection := GetProjectName()
-	
+
 	// 添加streamMode标志
 	ragCmd.Flags().BoolVarP(&streamMode, "stream", "s", true, lang.T("启用流式输出模式"))
 	// 添加Qdrant URL标志
@@ -166,16 +166,10 @@ func initializeModels(config *config.SchemaConfig) (llms.Model, embeddings.Embed
 
 	// 初始化嵌入模型
 	// 确保返回的LLM模型实现了embeddings.Embedder接口
-	embeddingLLM, err := cnllms.CreateLLM(config.EmbeddingLLM.Type, config.EmbeddingLLM.Params)
+	embeddingLLM, err := cnllms.CreateEmbedding(config.EmbeddingLLM.Type, config.EmbeddingLLM.Params)
 	if err != nil {
 		return llm, nil, fmt.Errorf("初始化嵌入模型失败: %v", err)
 	}
 
-	// 转换为embeddings.Embedder类型（如果模型支持嵌入功能）
-	embeddingModel, ok := embeddingLLM.(embeddings.Embedder)
-	if !ok {
-		return llm, nil, fmt.Errorf("嵌入模型 '%s' 不支持embeddings.Embedder接口", config.EmbeddingLLM.Type)
-	}
-
-	return llm, embeddingModel, nil
+	return llm, embeddingLLM, nil
 }

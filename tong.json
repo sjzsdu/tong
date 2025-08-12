@@ -37,7 +37,7 @@
         "params": {}
     },
     "embeddingLLM": {
-        "type": "qwen",
+        "type": "ollama",
         "params": {}
     }
 }
