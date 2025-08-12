@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/helper"
@@ -102,4 +103,13 @@ func IsGitRoot() bool {
 		return false
 	}
 	return helper.IsGitRoot(targetPath)
+}
+
+func GetProjectName() string {
+	targetPath, err := helper.GetTargetPath(workDir, repoURL)
+	if err != nil {
+		fmt.Printf("failed to get target path: %v\n", err)
+		return "unknown"
+	}
+	return filepath.Base(targetPath)
 }

@@ -35,12 +35,15 @@ var ragCmd = &cobra.Command{
 }
 
 func init() {
+	// 获取当前目录名称作为默认集合名称
+	defaultCollection := GetProjectName()
+	
 	// 添加streamMode标志
 	ragCmd.Flags().BoolVarP(&streamMode, "stream", "s", true, lang.T("启用流式输出模式"))
 	// 添加Qdrant URL标志
 	ragCmd.Flags().StringVarP(&qdrantURL, "qdrant", "q", "http://localhost:6333", lang.T("Qdrant服务URL"))
 	// 添加集合名称标志
-	ragCmd.Flags().StringVarP(&collectionName, "collection", "c", "tong_docs", lang.T("Qdrant集合名称"))
+	ragCmd.Flags().StringVarP(&collectionName, "collection", "c", defaultCollection, lang.T("Qdrant集合名称"))
 	// 添加文本分块大小标志
 	ragCmd.Flags().IntVarP(&chunkSize, "chunk-size", "", 1000, lang.T("文本分块大小"))
 	// 添加文本分块重叠标志
