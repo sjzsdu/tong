@@ -37,11 +37,37 @@ type EmbeddingConfig struct {
 	Params map[string]interface{} `json:"params"`
 }
 
+// RagConfig 定义 RAG 相关的可配置项（对应 tong.json 的 rag 节）
+type RagConfig struct {
+	Storage struct {
+		URL        string `json:"url,omitempty"`
+		Collection string `json:"collection,omitempty"`
+	} `json:"storage,omitempty"`
+	Splitter struct {
+		ChunkSize    int `json:"chunkSize,omitempty"`
+		ChunkOverlap int `json:"chunkOverlap,omitempty"`
+	} `json:"splitter,omitempty"`
+	Retriever struct {
+		TopK           int     `json:"topK,omitempty"`
+		ScoreThreshold float32 `json:"scoreThreshold,omitempty"`
+	} `json:"retriever,omitempty"`
+	Session struct {
+		Stream     *bool `json:"stream,omitempty"`
+		MaxHistory int   `json:"maxHistory,omitempty"`
+	} `json:"session,omitempty"`
+	DocsDir string `json:"docsDir,omitempty"`
+	Sync    struct {
+		ForceReindex        bool `json:"forceReindex,omitempty"`
+		SyncIntervalSeconds int  `json:"syncIntervalSec,omitempty"`
+	} `json:"sync,omitempty"`
+}
+
 // MCPConfig MCP 配置文件结构
 type SchemaConfig struct {
 	MCPServers   map[string]MCPServerConfig `json:"mcpServers"`
 	MasterLLM    LLMConfig                  `json:"masterLLM"`
 	EmbeddingLLM EmbeddingConfig            `json:"embeddingLLM"`
+	Rag          RagConfig                  `json:"rag,omitempty"`
 }
 
 // LoadMCPConfig 从指定目录加载 MCP 配置
@@ -120,6 +146,34 @@ func MergeConfig(target *SchemaConfig, source *SchemaConfig) {
 	if source.EmbeddingLLM.Type != "" {
 		target.EmbeddingLLM = source.EmbeddingLLM
 	}
+
+	// 合并 Rag（整体覆盖，按 dir 与 file 的优先级）
+	if !isZeroRagConfig(source.Rag) {
+		target.Rag = source.Rag
+	}
+}
+
+// 判断 RagConfig 是否为零值（用于决定是否覆盖）
+func isZeroRagConfig(r RagConfig) bool {
+	if r.Storage.URL != "" || r.Storage.Collection != "" {
+		return false
+	}
+	if r.Splitter.ChunkSize > 0 || r.Splitter.ChunkOverlap > 0 {
+		return false
+	}
+	if r.Retriever.TopK > 0 || r.Retriever.ScoreThreshold > 0 {
+		return false
+	}
+	if r.Session.Stream != nil || r.Session.MaxHistory > 0 {
+		return false
+	}
+	if r.DocsDir != "" {
+		return false
+	}
+	if r.Sync.ForceReindex || r.Sync.SyncIntervalSeconds > 0 {
+		return false
+	}
+	return true
 }
 
 // GetServerConfig 获取指定服务器的配置
@@ -148,6 +202,18 @@ func (c *SchemaConfig) ToJSON(filePath string) error {
 
 // DefaultSchemaConfig 生成默认的 SchemaConfig 配置
 func DefaultSchemaConfig() *SchemaConfig {
+	// 默认 RAG 配置
+	rc := RagConfig{}
+	rc.Storage.URL = share.RAG_VECTOR_URL
+	rc.Storage.Collection = share.RAG_COLLECTION
+	rc.Splitter.ChunkSize = 1000
+	rc.Splitter.ChunkOverlap = 200
+	rc.Retriever.TopK = 4
+	streamDefault := true
+	rc.Session.Stream = &streamDefault
+	// DocsDir 留空，运行时取项目根或命令行
+	rc.Sync.SyncIntervalSeconds = 300
+
 	return &SchemaConfig{
 		MCPServers: map[string]MCPServerConfig{},
 		MasterLLM: LLMConfig{
@@ -155,8 +221,9 @@ func DefaultSchemaConfig() *SchemaConfig {
 			Params: map[string]interface{}{},
 		},
 		EmbeddingLLM: EmbeddingConfig{
-			Type:   llms.EmbeddingType(GetConfigWithDefault("EMBEDDING_LLM", string(llms.QwenEmbedding))),
+			Type:   llms.EmbeddingType(GetConfigWithDefault("EMBEDDING_LLM", string(llms.OllamaEmbedding))),
 			Params: map[string]interface{}{},
 		},
+		Rag: rc,
 	}
 }

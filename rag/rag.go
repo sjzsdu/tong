@@ -7,6 +7,7 @@ import (
 
 	"github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/lang"
+	"github.com/sjzsdu/tong/share"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/schema"
@@ -14,14 +15,24 @@ import (
 
 // InitializeFromConfig 从配置初始化RAG系统
 func InitializeFromConfig(ctx context.Context, masterLLM llms.Model, embeddingModel embeddings.Embedder, options RAGOptions) (*RAG, error) {
+	if share.GetDebug() {
+		fmt.Printf("[DEBUG] init RAG: qdrant=%s collection=%s docsDir=%s topK=%d\n",
+			options.Storage.URL, options.Storage.CollectionName, options.DocsDir, options.Retriever.TopK)
+	}
 	// 创建向量存储
 	vectorStore, err := CreateVectorStore(ctx, embeddingModel, options.Storage)
 	if err != nil {
 		return nil, err
 	}
+	if share.GetDebug() {
+		fmt.Println("[DEBUG] vector store ready")
+	}
 
 	// 创建检索器
 	retriever := CreateRetriever(vectorStore, options.Retriever)
+	if share.GetDebug() {
+		fmt.Println("[DEBUG] retriever ready")
+	}
 
 	// 创建RAG实例
 	rag := &RAG{

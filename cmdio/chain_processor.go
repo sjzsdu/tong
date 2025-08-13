@@ -59,15 +59,15 @@ func (p *ChainProcessor) ProcessInput(ctx context.Context, input string, stream 
 			chains.WithStreamingFunc(streamingFunc),
 		}
 
-		// 运行 chain
-		_, err := chains.Call(ctx, p.chain, map[string]any{"input": input}, options...)
+		// 运行 chain（RetrievalQA 默认输入键为 "query"）
+		_, err := chains.Call(ctx, p.chain, map[string]any{"query": input}, options...)
 		if err != nil {
 			return fmt.Errorf(lang.T("流式处理输入时出错")+": %v", err)
 		}
 		return nil
 	} else {
 		options := []chains.ChainCallOption{}
-		result, err := chains.Call(ctx, p.chain, map[string]any{"input": input}, options...)
+		result, err := chains.Call(ctx, p.chain, map[string]any{"query": input}, options...)
 		if err != nil {
 			return fmt.Errorf(lang.T("处理输入时出错")+": %v", err)
 		}

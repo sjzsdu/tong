@@ -2,7 +2,9 @@ package rag
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/sjzsdu/tong/share"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/vectorstores/qdrant"
 )
@@ -25,7 +27,10 @@ func NewQdrantRetriever(store qdrant.Store, options RetrieverOptions) *QdrantRet
 
 // GetRelevantDocuments 实现schema.Retriever接口，获取与查询相关的文档
 func (r *QdrantRetriever) GetRelevantDocuments(ctx context.Context, query string) ([]schema.Document, error) {
-	// 使用Qdrant的相似度搜索
+	if share.GetDebug() {
+		fmt.Printf("[DEBUG] retrieve start: topK=%d query=%q\n", r.TopK, query)
+	}
+
 	docs, err := r.Store.SimilaritySearch(ctx, query, r.TopK)
 	if err != nil {
 		return nil, &RagError{
@@ -35,22 +40,17 @@ func (r *QdrantRetriever) GetRelevantDocuments(ctx context.Context, query string
 		}
 	}
 
-	// 如果启用了得分阈值过滤，则进行过滤
-	// 注意：目前Qdrant的SimilaritySearch不返回得分，所以这部分代码暂时不会生效
-	// 当langchaingo支持返回得分时，可以取消注释
-	/*
-		if r.ScoreThreshold > 0 && len(docs) > 0 {
-			// 假设文档的元数据中包含了相似度得分
-			filteredDocs := make([]schema.Document, 0)
-			for _, doc := range docs {
-				if score, ok := doc.Metadata["score"].(float32); ok && score >= r.ScoreThreshold {
-					filteredDocs = append(filteredDocs, doc)
-				}
-			}
-			return filteredDocs, nil
+	if share.GetDebug() {
+		fmt.Printf("[DEBUG] retrieve end: %d docs\n", len(docs))
+		for i, d := range docs {
+			src, _ := d.Metadata["source"].(string)
+			fname, _ := d.Metadata["filename"].(string)
+			rel, _ := d.Metadata["rel_path"].(string)
+			fmt.Printf("[DEBUG] doc[%d]: source=%s file=%s rel=%s len=%d\n", i, src, fname, rel, len(d.PageContent))
 		}
-	*/
+	}
 
+	// Note: Score filtering is disabled as scores aren't returned by current API
 	return docs, nil
 }
 

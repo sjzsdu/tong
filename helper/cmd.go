@@ -1,6 +1,8 @@
 package helper
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -147,4 +149,74 @@ func InputString(promptText string) (string, error) {
 	}
 
 	return input, nil
+}
+
+func PromptYesNo(prompt string, defaultYes bool) (bool, error) {
+	fmt.Print(prompt)
+	scanner := bufio.NewScanner(os.Stdin)
+	// Support \n, \r\n and lone \r
+	scanner.Split(scanAnyLine)
+	for {
+		if !scanner.Scan() {
+			if err := scanner.Err(); err != nil {
+				return defaultYes, err
+			}
+			return defaultYes, io.EOF
+		}
+		ans := strings.TrimSpace(scanner.Text())
+		if ans == "" {
+			return defaultYes, nil
+		}
+		s := normalizeYN(ans)
+		switch s {
+		case "y", "yes":
+			return true, nil
+		case "n", "no":
+			return false, nil
+		default:
+			fmt.Print("Please enter y or n: ")
+		}
+	}
+}
+
+// scanAnyLine is like bufio.ScanLines but also treats a lone '\r' as a line ending.
+func scanAnyLine(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+	if i := bytes.IndexByte(data, '\n'); i >= 0 {
+		// Trim optional preceding '\r'
+		if i > 0 && data[i-1] == '\r' {
+			return i + 1, data[:i-1], nil
+		}
+		return i + 1, data[:i], nil
+	}
+	if i := bytes.IndexByte(data, '\r'); i >= 0 { // handle lone CR
+		return i + 1, data[:i], nil
+	}
+	if atEOF {
+		return len(data), data, nil
+	}
+	return 0, nil, nil
+}
+
+// normalizeYN normalizes full-width and common Chinese yes/no inputs.
+func normalizeYN(s string) string {
+	s = strings.TrimSpace(strings.ToLower(s))
+	// Convert full-width ASCII to half-width
+	rs := []rune(s)
+	for i, r := range rs {
+		if r >= 0xFF01 && r <= 0xFF5E {
+			rs[i] = r - 0xFEE0
+		}
+	}
+	s = string(rs)
+	// Map common Chinese
+	switch s {
+	case "是", "好", "确定":
+		return "yes"
+	case "否", "不":
+		return "no"
+	}
+	return s
 }

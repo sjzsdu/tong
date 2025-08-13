@@ -3,7 +3,7 @@ package share
 import "time"
 
 // VERSION 版本号
-const VERSION = "1.0.1"
+const VERSION = "1.0.2"
 
 // BUILDNAME 制品名称
 const BUILDNAME = "tong"
@@ -29,3 +29,7 @@ const SERVER_PORT = 3000
 const SCHEMA_CONFIG_FILE = "tong.json"
 
 const MCP_CLIENT_NAME = "Tong MCP Client"
+
+const RAG_COLLECTION = "tong_rag"
+
+const RAG_VECTOR_URL = "http://localhost:6333"

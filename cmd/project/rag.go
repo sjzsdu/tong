@@ -40,85 +40,174 @@ var RagCmd = &cobra.Command{
 }
 
 func init() {
-	// 添加streamMode标志（本地变量，避免依赖外部包变量）
-	RagCmd.Flags().BoolVarP(&ragStreamMode, "stream", "s", true, lang.T("启用流式输出模式"))
-	// 添加Qdrant URL标志
-	RagCmd.Flags().StringVarP(&qdrantURL, "qdrant", "q", "http://localhost:6333", lang.T("Qdrant服务URL"))
-	// 添加集合名称标志（默认留空，运行时按项目名回填）
+	// 不设置实际默认（置空/置零），避免覆盖 tong.json；最终按优先级合并
+	RagCmd.Flags().BoolVarP(&ragStreamMode, "stream", "s", false, lang.T("启用流式输出模式"))
+	RagCmd.Flags().StringVarP(&qdrantURL, "qdrant", "q", "", lang.T("Qdrant服务URL"))
 	RagCmd.Flags().StringVarP(&collectionName, "collection", "c", "", lang.T("Qdrant集合名称（默认使用项目名）"))
-	// 添加文本分块大小标志
-	RagCmd.Flags().IntVarP(&chunkSize, "chunk-size", "", 1000, lang.T("文本分块大小"))
-	// 添加文本分块重叠标志
-	RagCmd.Flags().IntVarP(&chunkOverlap, "chunk-overlap", "", 200, lang.T("文本分块重叠大小"))
-	// 添加文档目录标志（去掉短选项，避免与上层 -d 冲突）
-	RagCmd.Flags().StringVar(&docsDir, "docs-dir", ".", lang.T("文档目录路径（相对项目根或绝对路径）"))
-	// 限定子目录（相对项目根），与 search 命令保持一致
-	RagCmd.Flags().StringVar(&ragSubdir, "subdir", ".", lang.T("限定索引的子目录（相对项目根）"))
+	RagCmd.Flags().IntVarP(&chunkSize, "chunk-size", "", 0, lang.T("文本分块大小"))
+	RagCmd.Flags().IntVarP(&chunkOverlap, "chunk-overlap", "", 0, lang.T("文本分块重叠大小"))
+	RagCmd.Flags().StringVar(&docsDir, "docs-dir", "", lang.T("文档目录路径（相对项目根或绝对路径）"))
+	RagCmd.Flags().StringVar(&ragSubdir, "subdir", "", lang.T("限定索引的子目录（相对项目根）"))
 
-	// 添加同步相关标志
 	RagCmd.Flags().BoolVarP(&syncOnly, "sync", "", false, lang.T("仅同步文档，不启动交互会话"))
 	RagCmd.Flags().BoolVarP(&autoSync, "auto-sync", "", false, lang.T("启用自动同步"))
-	RagCmd.Flags().IntVarP(&syncInterval, "sync-interval", "", 300, lang.T("自动同步间隔（秒）"))
+	RagCmd.Flags().IntVarP(&syncInterval, "sync-interval", "", 0, lang.T("自动同步间隔（秒）"))
 	RagCmd.Flags().BoolVarP(&forceReindex, "force-reindex", "", false, lang.T("强制重新索引所有文档"))
 }
 
 func runRag(cmd *cobra.Command, args []string) {
-	// 基于项目根和 subdir/docs-dir 计算最终目录，并校验对应的 Node 存在
 	if sharedProject == nil {
 		log.Fatalf("错误: 未找到共享的项目实例")
 	}
 	projectRoot := sharedProject.GetRootPath()
-
-	finalTargetPath := ""
-	// 优先使用 docs-dir；若为默认值或空，则回退到 subdir
-	if docsDir != "" && docsDir != "." {
-		if filepath.IsAbs(docsDir) {
-			finalTargetPath = docsDir
-		} else {
-			finalTargetPath = filepath.Join(projectRoot, docsDir)
-		}
-	} else {
-		if filepath.IsAbs(ragSubdir) {
-			finalTargetPath = ragSubdir
-		} else {
-			finalTargetPath = filepath.Join(projectRoot, ragSubdir)
-		}
-	}
-
-	// 使用通用函数获取目标节点，确保路径在项目树中
-	if _, err := GetTargetNode(finalTargetPath); err != nil {
-		log.Fatalf("目标路径无效: %v", err)
-	}
-
-	// 回填默认集合名称
-	if collectionName == "" {
-		collectionName = filepath.Base(projectRoot)
-	}
-
-	// 加载配置（相对项目根），避免依赖外部 cmd 包函数
 	cfg, err := config.LoadMCPConfig(projectRoot, "")
 	if err != nil {
 		log.Fatalf("获取配置失败: %v", err)
 	}
 
-	// 初始化模型
-	llmModel, embeddingModel, err := initializeModels(cfg)
-	if err != nil {
-		log.Fatalf("初始化模型失败: %v", err)
+	llmModel, embeddingModel, _ := initializeModels(cfg)
+	options := resolveOptions(cmd, cfg, projectRoot)
+
+	if share.GetDebug() {
+		helper.PrintWithLabel("RAG Options", options)
 	}
 
-	// 创建RAG选项
+	ctx := context.Background()
+	ragSystem, err := rag.InitializeFromConfig(ctx, llmModel, embeddingModel, options)
+	if err != nil {
+		log.Fatalf("初始化RAG系统失败: %v", err)
+	}
+
+	if syncOnly {
+		fmt.Println(lang.T("执行文档同步..."))
+		if err := ragSystem.SyncDocuments(ctx); err != nil {
+			log.Fatalf("文档同步失败: %v", err)
+		}
+		fmt.Println(lang.T("文档同步完成"))
+		return
+	}
+
+	indexed, err := rag.IsIndexed(options.Storage.CollectionName)
+	if err != nil {
+		log.Fatalf("检查索引状态失败: %v", err)
+	}
+
+	if !indexed || forceReindex {
+		log.Println(lang.T("开始执行文档索引..."))
+		if err := ragSystem.IndexDocuments(ctx, options.DocsDir); err != nil {
+			log.Fatalf("文档索引失败: %v", err)
+		}
+	}
+	if autoSync {
+		fmt.Println(lang.T("启动自动同步服务..."))
+		if err := ragSystem.StartAutomaticSync(); err != nil {
+			log.Fatalf("启动自动同步服务失败: %v", err)
+		}
+	}
+
+	if err := ragSystem.Start(ctx); err != nil {
+		log.Fatalf("RAG会话错误: %v", err)
+	}
+}
+
+func resolveOptions(cmd *cobra.Command, cfg *config.SchemaConfig, projectRoot string) rag.RAGOptions {
+	// 标记哪些参数由命令行显式提供
+	flags := cmd.Flags()
+	streamChanged := flags.Changed("stream")
+	qdrantChanged := flags.Changed("qdrant")
+	collectionChanged := flags.Changed("collection")
+	chunkSizeChanged := flags.Changed("chunk-size")
+	chunkOverlapChanged := flags.Changed("chunk-overlap")
+	docsDirChanged := flags.Changed("docs-dir")
+	subdirChanged := flags.Changed("subdir")
+	syncIntervalChanged := flags.Changed("sync-interval")
+	forceChanged := flags.Changed("force-reindex")
+
+	// 先应用 tong.json，再由命令行覆盖（若显式设置）
+	if !qdrantChanged && cfg.Rag.Storage.URL != "" {
+		qdrantURL = cfg.Rag.Storage.URL
+	}
+	if !collectionChanged && cfg.Rag.Storage.Collection != "" {
+		collectionName = cfg.Rag.Storage.Collection
+	}
+	if !chunkSizeChanged && cfg.Rag.Splitter.ChunkSize > 0 {
+		chunkSize = cfg.Rag.Splitter.ChunkSize
+	}
+	if !chunkOverlapChanged && cfg.Rag.Splitter.ChunkOverlap > 0 {
+		chunkOverlap = cfg.Rag.Splitter.ChunkOverlap
+	}
+	// retriever
+	topK := 4
+	if cfg.Rag.Retriever.TopK > 0 {
+		topK = cfg.Rag.Retriever.TopK
+	}
+	// session stream
+	if !streamChanged && cfg.Rag.Session.Stream != nil {
+		ragStreamMode = *cfg.Rag.Session.Stream
+	}
+	// docs dir
+	if !docsDirChanged && cfg.Rag.DocsDir != "" {
+		docsDir = cfg.Rag.DocsDir
+	}
+	// sync
+	if !syncIntervalChanged && cfg.Rag.Sync.SyncIntervalSeconds > 0 {
+		syncInterval = cfg.Rag.Sync.SyncIntervalSeconds
+	}
+	if !forceChanged && cfg.Rag.Sync.ForceReindex {
+		forceReindex = true
+	}
+
+	// 代码级默认值（在未通过 CLI 或 tong.json 指定时）
+	if qdrantURL == "" {
+		qdrantURL = "http://localhost:6333"
+	}
+	if chunkSize == 0 {
+		chunkSize = 1000
+	}
+	if chunkOverlap == 0 {
+		chunkOverlap = 200
+	}
+	if syncInterval == 0 {
+		syncInterval = 300
+	}
+
+	// 计算最终索引目录
+	finalTargetPath := ""
+	if docsDir != "" {
+		if filepath.IsAbs(docsDir) {
+			finalTargetPath = docsDir
+		} else {
+			finalTargetPath = filepath.Join(projectRoot, docsDir)
+		}
+	} else if subdirChanged && ragSubdir != "" { // 仅当用户显式提供 subdir 时使用
+		if filepath.IsAbs(ragSubdir) {
+			finalTargetPath = ragSubdir
+		} else {
+			finalTargetPath = filepath.Join(projectRoot, ragSubdir)
+		}
+	} else {
+		finalTargetPath = projectRoot
+	}
+
+	if _, err := GetTargetNode(finalTargetPath); err != nil {
+		log.Fatalf("目标路径无效: %v", err)
+	}
+
+	if collectionName == "" {
+		collectionName = filepath.Base(projectRoot)
+	}
+
 	options := rag.RAGOptions{
 		Storage: rag.StorageOptions{
 			URL:            qdrantURL,
 			CollectionName: collectionName,
 		},
 		Splitter: rag.SplitterOptions{
-			ChunkSize:    chunkSize,
-			ChunkOverlap: chunkOverlap,
+			ChunkSize:    orDefault(chunkSize, 1000),
+			ChunkOverlap: orDefault(chunkOverlap, 200),
 		},
 		Retriever: rag.RetrieverOptions{
-			TopK: 4,
+			TopK: topK,
 		},
 		Session: rag.SessionOptions{
 			Stream: ragStreamMode,
@@ -129,81 +218,23 @@ func runRag(cmd *cobra.Command, args []string) {
 			SyncInterval: time.Duration(syncInterval) * time.Second,
 		},
 	}
+	return options
+}
 
-	if share.GetDebug() {
-		helper.PrintWithLabel("RAG Options", options)
+func orDefault(v, d int) int {
+	if v > 0 {
+		return v
 	}
-
-	// 初始化RAG系统
-	ctx := context.Background()
-	ragSystem, err := rag.InitializeFromConfig(ctx, llmModel, embeddingModel, options)
-	if err != nil {
-		log.Fatalf("初始化RAG系统失败: %v", err)
-	}
-
-	// 如果只需同步文档
-	if syncOnly {
-		fmt.Println(lang.T("执行文档同步..."))
-		err = ragSystem.SyncDocuments(ctx)
-		if err != nil {
-			log.Fatalf("文档同步失败: %v", err)
-		}
-		fmt.Println(lang.T("文档同步完成"))
-		return
-	}
-
-	// 检查是否需要索引或强制重新索引
-	indexed, err := rag.IsIndexed(options.Storage.CollectionName)
-	if err != nil {
-		log.Fatalf("检查索引状态失败: %v", err)
-	}
-
-	if !indexed || forceReindex {
-		// 文档尚未索引或强制重新索引
-		log.Println(lang.T("开始执行文档索引..."))
-		err = ragSystem.IndexDocuments(ctx, options.DocsDir)
-		if err != nil {
-			log.Fatalf("文档索引失败: %v", err)
-		}
-	} else {
-		// 询问是否需要重新索引
-		fmt.Print(lang.T("文档已经索引，是否需要重新索引? (y/n): "))
-		var answer string
-		fmt.Scanln(&answer)
-		if answer == "y" || answer == "Y" {
-			err = ragSystem.IndexDocuments(ctx, options.DocsDir)
-			if err != nil {
-				log.Fatalf("文档重新索引失败: %v", err)
-			}
-		}
-	}
-
-	// 如果启用自动同步
-	if autoSync {
-		fmt.Println(lang.T("启动自动同步服务..."))
-		err = ragSystem.StartAutomaticSync()
-		if err != nil {
-			log.Fatalf("启动自动同步服务失败: %v", err)
-		}
-	}
-
-	// 启动RAG会话
-	err = ragSystem.Start(ctx)
-	if err != nil {
-		log.Fatalf("RAG会话错误: %v", err)
-	}
+	return d
 }
 
 // initializeModels 初始化LLM和嵌入模型
 func initializeModels(config *config.SchemaConfig) (llms.Model, embeddings.Embedder, error) {
-	// 初始化LLM
 	llm, err := cnllms.CreateLLM(config.MasterLLM.Type, config.MasterLLM.Params)
 	if err != nil {
 		return nil, nil, fmt.Errorf("初始化LLM失败: %v", err)
 	}
 
-	// 初始化嵌入模型
-	// 确保返回的LLM模型实现了embeddings.Embedder接口
 	embeddingLLM, err := cnllms.CreateEmbedding(config.EmbeddingLLM.Type, config.EmbeddingLLM.Params)
 	if err != nil {
 		return llm, nil, fmt.Errorf("初始化嵌入模型失败: %v", err)

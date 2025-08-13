@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"path"
 	"time"
+
+	"github.com/sjzsdu/tong/share"
 )
 
 // ensureQdrantCollection checks service availability and ensures the collection exists.
@@ -27,6 +29,9 @@ func ensureQdrantCollection(ctx context.Context, baseURL, collection string, dim
 	// Check if collection exists
 	getURL := *u
 	getURL.Path = path.Join(getURL.Path, "/collections", collection)
+	if share.GetDebug() {
+		fmt.Printf("[DEBUG] check qdrant collection: %s\n", getURL.String())
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, getURL.String(), nil)
 	if err != nil {
 		return err
@@ -41,12 +46,14 @@ func ensureQdrantCollection(ctx context.Context, baseURL, collection string, dim
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		// Parse vectors size and verify dimension
 		var body map[string]any
 		if err := json.NewDecoder(resp.Body).Decode(&body); err == nil {
-			if sz, ok := extractQdrantVectorSize(body); ok && sz > 0 {
-				if sz != dim {
-					return fmt.Errorf("collection '%s' dimension mismatch: existing=%d, current=%d. Fix: use a new collection via --collection, delete the old collection in Qdrant, or keep the same embedding model", collection, sz, dim)
+			if size, ok := extractQdrantVectorSize(body); ok {
+				if share.GetDebug() {
+					fmt.Printf("[DEBUG] existing collection dim=%d\n", size)
+				}
+				if size != dim {
+					return fmt.Errorf("collection '%s' dimension mismatch: existing=%d, current=%d. Fix: use a new collection via --collection, delete the old collection in Qdrant, or keep the same embedding model", collection, size, dim)
 				}
 			}
 		}
@@ -67,6 +74,9 @@ func ensureQdrantCollection(ctx context.Context, baseURL, collection string, dim
 
 	putURL := *u
 	putURL.Path = path.Join(putURL.Path, "/collections", collection)
+	if share.GetDebug() {
+		fmt.Printf("[DEBUG] create collection: %s with dim=%d\n", putURL.String(), dim)
+	}
 	preq, err := http.NewRequestWithContext(ctx, http.MethodPut, putURL.String(), bytes.NewReader(b))
 	if err != nil {
 		return err
@@ -82,6 +92,9 @@ func ensureQdrantCollection(ctx context.Context, baseURL, collection string, dim
 	defer pr.Body.Close()
 	if pr.StatusCode != http.StatusOK {
 		return fmt.Errorf("create collection failed: %s", pr.Status)
+	}
+	if share.GetDebug() {
+		fmt.Println("[DEBUG] collection created")
 	}
 	return nil
 }

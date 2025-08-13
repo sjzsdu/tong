@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/sjzsdu/tong/lang"
+	"github.com/sjzsdu/tong/share"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/textsplitter"
@@ -25,7 +26,14 @@ func CreateVectorStore(ctx context.Context, embeddingModel embeddings.Embedder, 
 		}
 	}
 
+	if share.GetDebug() {
+		fmt.Printf("[DEBUG] qdrant url=%s collection=%s\n", qdrantURL.String(), options.CollectionName)
+	}
+
 	// 获取嵌入维度以用于集合创建
+	if share.GetDebug() {
+		fmt.Println("[DEBUG] probing embedding dimension...")
+	}
 	vec, err := embeddingModel.EmbedQuery(ctx, "ping")
 	if err != nil {
 		return qdrant.Store{}, &RagError{
@@ -35,6 +43,9 @@ func CreateVectorStore(ctx context.Context, embeddingModel embeddings.Embedder, 
 		}
 	}
 	dim := len(vec)
+	if share.GetDebug() {
+		fmt.Printf("[DEBUG] embedding dim=%d\n", dim)
+	}
 
 	// 可选 API Key（优先环境变量）
 	apiKey := os.Getenv("QDRANT_API_KEY")
@@ -46,6 +57,9 @@ func CreateVectorStore(ctx context.Context, embeddingModel embeddings.Embedder, 
 			Message: "检查/创建Qdrant集合失败",
 			Cause:   err,
 		}
+	}
+	if share.GetDebug() {
+		fmt.Println("[DEBUG] qdrant collection is ready")
 	}
 
 	// 创建向量存储
@@ -66,6 +80,9 @@ func CreateVectorStore(ctx context.Context, embeddingModel embeddings.Embedder, 
 			Message: "创建向量存储失败",
 			Cause:   err,
 		}
+	}
+	if share.GetDebug() {
+		fmt.Println("[DEBUG] vector store created")
 	}
 
 	return vectorStore, nil
@@ -105,10 +122,16 @@ func StoreDocuments(ctx context.Context, vectorStore qdrant.Store, docs []schema
 	fmt.Println(lang.T("开始向量化文档并存储..."))
 
 	batchSize := getMaxEmbedBatchSize()
+	if share.GetDebug() {
+		fmt.Printf("[DEBUG] total docs=%d batchSize=%d\n", len(docs), batchSize)
+	}
 	for i := 0; i < len(docs); i += batchSize {
 		end := i + batchSize
 		if end > len(docs) {
 			end = len(docs)
+		}
+		if share.GetDebug() {
+			fmt.Printf("[DEBUG] add documents batch: %d-%d\n", i, end)
 		}
 		_, err := vectorStore.AddDocuments(ctx, docs[i:end])
 		if err != nil {
