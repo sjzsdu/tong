@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
+	"strconv"
 
 	"github.com/sjzsdu/tong/lang"
 	"github.com/tmc/langchaingo/embeddings"
@@ -13,7 +15,7 @@ import (
 )
 
 // CreateVectorStore 创建向量存储
-func CreateVectorStore(embeddingModel embeddings.Embedder, options StorageOptions) (qdrant.Store, error) {
+func CreateVectorStore(ctx context.Context, embeddingModel embeddings.Embedder, options StorageOptions) (qdrant.Store, error) {
 	qdrantURL, err := url.Parse(options.URL)
 	if err != nil {
 		return qdrant.Store{}, &RagError{
@@ -23,11 +25,41 @@ func CreateVectorStore(embeddingModel embeddings.Embedder, options StorageOption
 		}
 	}
 
-	vectorStore, err := qdrant.New(
+	// 获取嵌入维度以用于集合创建
+	vec, err := embeddingModel.EmbedQuery(ctx, "ping")
+	if err != nil {
+		return qdrant.Store{}, &RagError{
+			Code:    "embedding_dim_failed",
+			Message: "获取嵌入维度失败",
+			Cause:   err,
+		}
+	}
+	dim := len(vec)
+
+	// 可选 API Key（优先环境变量）
+	apiKey := os.Getenv("QDRANT_API_KEY")
+
+	// 确认服务可用且集合存在，不存在则自动创建
+	if err := ensureQdrantCollection(ctx, options.URL, options.CollectionName, dim, apiKey); err != nil {
+		return qdrant.Store{}, &RagError{
+			Code:    "ensure_collection_failed",
+			Message: "检查/创建Qdrant集合失败",
+			Cause:   err,
+		}
+	}
+
+	// 创建向量存储
+	var vopts []qdrant.Option
+	vopts = append(vopts,
 		qdrant.WithURL(*qdrantURL),
 		qdrant.WithCollectionName(options.CollectionName),
 		qdrant.WithEmbedder(embeddingModel),
 	)
+	if apiKey != "" {
+		vopts = append(vopts, qdrant.WithAPIKey(apiKey))
+	}
+
+	vectorStore, err := qdrant.New(vopts...)
 	if err != nil {
 		return qdrant.Store{}, &RagError{
 			Code:    "create_vector_store_failed",
@@ -71,12 +103,20 @@ func StoreDocuments(ctx context.Context, vectorStore qdrant.Store, docs []schema
 	}
 
 	fmt.Println(lang.T("开始向量化文档并存储..."))
-	_, err := vectorStore.AddDocuments(ctx, docs)
-	if err != nil {
-		return &RagError{
-			Code:    "store_documents_failed",
-			Message: "添加文档到向量存储失败",
-			Cause:   err,
+
+	batchSize := getMaxEmbedBatchSize()
+	for i := 0; i < len(docs); i += batchSize {
+		end := i + batchSize
+		if end > len(docs) {
+			end = len(docs)
+		}
+		_, err := vectorStore.AddDocuments(ctx, docs[i:end])
+		if err != nil {
+			return &RagError{
+				Code:    "store_documents_failed",
+				Message: "添加文档到向量存储失败",
+				Cause:   err,
+			}
 		}
 	}
 
@@ -115,4 +155,15 @@ func IndexDocuments(ctx context.Context, vectorStore qdrant.Store, docsDir strin
 	}
 
 	return nil
+}
+
+// getMaxEmbedBatchSize returns the max batch size for embedding requests.
+// Default 25 to comply with providers like OpenAI; can be overridden by env EMBED_BATCH_SIZE.
+func getMaxEmbedBatchSize() int {
+	if v := os.Getenv("EMBED_BATCH_SIZE"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 25
 }

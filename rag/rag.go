@@ -15,7 +15,7 @@ import (
 // InitializeFromConfig 从配置初始化RAG系统
 func InitializeFromConfig(ctx context.Context, masterLLM llms.Model, embeddingModel embeddings.Embedder, options RAGOptions) (*RAG, error) {
 	// 创建向量存储
-	vectorStore, err := CreateVectorStore(embeddingModel, options.Storage)
+	vectorStore, err := CreateVectorStore(ctx, embeddingModel, options.Storage)
 	if err != nil {
 		return nil, err
 	}

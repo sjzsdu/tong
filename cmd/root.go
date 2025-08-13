@@ -113,3 +113,12 @@ func GetProjectName() string {
 	}
 	return filepath.Base(targetPath)
 }
+
+func GetCwdName() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Printf("failed to get current working directory: %v\n", err)
+		return "unknown"
+	}
+	return filepath.Base(cwd)
+}

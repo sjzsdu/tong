@@ -1,15 +1,18 @@
-package cmd
+package project
 
 import (
 	"context"
 	"fmt"
 	"log"
+	"path/filepath"
 	"time"
 
 	cnllms "github.com/sjzsdu/langchaingo-cn/llms"
 	"github.com/sjzsdu/tong/config"
+	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/lang"
 	"github.com/sjzsdu/tong/rag"
+	"github.com/sjzsdu/tong/share"
 	"github.com/spf13/cobra"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms"
@@ -21,13 +24,15 @@ var (
 	chunkSize      int
 	chunkOverlap   int
 	docsDir        string
+	ragSubdir      string
+	ragStreamMode  bool
 	syncOnly       bool
 	autoSync       bool
 	syncInterval   int
 	forceReindex   bool
 )
 
-var ragCmd = &cobra.Command{
+var RagCmd = &cobra.Command{
 	Use:   "rag",
 	Short: lang.T("Rag application"),
 	Long:  lang.T("Rag application"),
@@ -35,34 +40,63 @@ var ragCmd = &cobra.Command{
 }
 
 func init() {
-	// 获取当前目录名称作为默认集合名称
-	defaultCollection := GetProjectName()
-
-	// 添加streamMode标志
-	ragCmd.Flags().BoolVarP(&streamMode, "stream", "s", true, lang.T("启用流式输出模式"))
+	// 添加streamMode标志（本地变量，避免依赖外部包变量）
+	RagCmd.Flags().BoolVarP(&ragStreamMode, "stream", "s", true, lang.T("启用流式输出模式"))
 	// 添加Qdrant URL标志
-	ragCmd.Flags().StringVarP(&qdrantURL, "qdrant", "q", "http://localhost:6333", lang.T("Qdrant服务URL"))
-	// 添加集合名称标志
-	ragCmd.Flags().StringVarP(&collectionName, "collection", "c", defaultCollection, lang.T("Qdrant集合名称"))
+	RagCmd.Flags().StringVarP(&qdrantURL, "qdrant", "q", "http://localhost:6333", lang.T("Qdrant服务URL"))
+	// 添加集合名称标志（默认留空，运行时按项目名回填）
+	RagCmd.Flags().StringVarP(&collectionName, "collection", "c", "", lang.T("Qdrant集合名称（默认使用项目名）"))
 	// 添加文本分块大小标志
-	ragCmd.Flags().IntVarP(&chunkSize, "chunk-size", "", 1000, lang.T("文本分块大小"))
+	RagCmd.Flags().IntVarP(&chunkSize, "chunk-size", "", 1000, lang.T("文本分块大小"))
 	// 添加文本分块重叠标志
-	ragCmd.Flags().IntVarP(&chunkOverlap, "chunk-overlap", "", 200, lang.T("文本分块重叠大小"))
-	// 添加文档目录标志
-	ragCmd.Flags().StringVarP(&docsDir, "docs-dir", "d", ".", lang.T("文档目录路径"))
+	RagCmd.Flags().IntVarP(&chunkOverlap, "chunk-overlap", "", 200, lang.T("文本分块重叠大小"))
+	// 添加文档目录标志（去掉短选项，避免与上层 -d 冲突）
+	RagCmd.Flags().StringVar(&docsDir, "docs-dir", ".", lang.T("文档目录路径（相对项目根或绝对路径）"))
+	// 限定子目录（相对项目根），与 search 命令保持一致
+	RagCmd.Flags().StringVar(&ragSubdir, "subdir", ".", lang.T("限定索引的子目录（相对项目根）"))
 
 	// 添加同步相关标志
-	ragCmd.Flags().BoolVarP(&syncOnly, "sync", "", false, lang.T("仅同步文档，不启动交互会话"))
-	ragCmd.Flags().BoolVarP(&autoSync, "auto-sync", "", false, lang.T("启用自动同步"))
-	ragCmd.Flags().IntVarP(&syncInterval, "sync-interval", "", 300, lang.T("自动同步间隔（秒）"))
-	ragCmd.Flags().BoolVarP(&forceReindex, "force-reindex", "", false, lang.T("强制重新索引所有文档"))
-
-	rootCmd.AddCommand(ragCmd)
+	RagCmd.Flags().BoolVarP(&syncOnly, "sync", "", false, lang.T("仅同步文档，不启动交互会话"))
+	RagCmd.Flags().BoolVarP(&autoSync, "auto-sync", "", false, lang.T("启用自动同步"))
+	RagCmd.Flags().IntVarP(&syncInterval, "sync-interval", "", 300, lang.T("自动同步间隔（秒）"))
+	RagCmd.Flags().BoolVarP(&forceReindex, "force-reindex", "", false, lang.T("强制重新索引所有文档"))
 }
 
 func runRag(cmd *cobra.Command, args []string) {
-	// 获取配置
-	cfg, err := GetConfig()
+	// 基于项目根和 subdir/docs-dir 计算最终目录，并校验对应的 Node 存在
+	if sharedProject == nil {
+		log.Fatalf("错误: 未找到共享的项目实例")
+	}
+	projectRoot := sharedProject.GetRootPath()
+
+	finalTargetPath := ""
+	// 优先使用 docs-dir；若为默认值或空，则回退到 subdir
+	if docsDir != "" && docsDir != "." {
+		if filepath.IsAbs(docsDir) {
+			finalTargetPath = docsDir
+		} else {
+			finalTargetPath = filepath.Join(projectRoot, docsDir)
+		}
+	} else {
+		if filepath.IsAbs(ragSubdir) {
+			finalTargetPath = ragSubdir
+		} else {
+			finalTargetPath = filepath.Join(projectRoot, ragSubdir)
+		}
+	}
+
+	// 使用通用函数获取目标节点，确保路径在项目树中
+	if _, err := GetTargetNode(finalTargetPath); err != nil {
+		log.Fatalf("目标路径无效: %v", err)
+	}
+
+	// 回填默认集合名称
+	if collectionName == "" {
+		collectionName = filepath.Base(projectRoot)
+	}
+
+	// 加载配置（相对项目根），避免依赖外部 cmd 包函数
+	cfg, err := config.LoadMCPConfig(projectRoot, "")
 	if err != nil {
 		log.Fatalf("获取配置失败: %v", err)
 	}
@@ -87,13 +121,17 @@ func runRag(cmd *cobra.Command, args []string) {
 			TopK: 4,
 		},
 		Session: rag.SessionOptions{
-			Stream: streamMode,
+			Stream: ragStreamMode,
 		},
-		DocsDir: docsDir,
+		DocsDir: finalTargetPath,
 		Sync: rag.SyncOptions{
 			ForceReindex: forceReindex,
 			SyncInterval: time.Duration(syncInterval) * time.Second,
 		},
+	}
+
+	if share.GetDebug() {
+		helper.PrintWithLabel("RAG Options", options)
 	}
 
 	// 初始化RAG系统

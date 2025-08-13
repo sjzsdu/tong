@@ -60,9 +60,19 @@ func (p *CoroutinePool[T]) Execute(ctx context.Context, works []WorkFunc[T]) []R
 	}
 
 	// 启动一个协程来监控上下文取消
+	// 创建完成通道
+	doneChan := make(chan struct{})
+
+	// 启动一个协程来监控上下文取消和工作完成
 	go func() {
-		<-ctx.Done()
-		close(workChan)
+		select {
+		case <-ctx.Done():
+			// 上下文被取消
+			close(workChan)
+		case <-doneChan:
+			// 所有工作已发送完成
+			close(workChan)
+		}
 	}()
 
 	// 发送工作索引到通道
@@ -76,8 +86,8 @@ func (p *CoroutinePool[T]) Execute(ctx context.Context, works []WorkFunc[T]) []R
 		}
 	}
 
-	// 关闭工作通道，表示没有更多工作
-	close(workChan)
+	// 通知所有工作已发送完成
+	close(doneChan)
 
 	// 等待所有工作完成
 	wg.Wait()
