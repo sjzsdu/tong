@@ -14,13 +14,21 @@ import (
 
 // 支持的文件类型
 var supportedExtensions = map[string]bool{
-	".txt":  true,
-	".md":   true,
-	".pdf":  true,
-	".csv":  true,
-	".html": false, // 暂不支持，但已识别
-	".htm":  false, // 暂不支持，但已识别
-	".json": false, // 暂不支持，但已识别
+	".txt":    true,
+	".md":     true,
+	".pdf":    true,
+	".csv":    true,
+	".go":     true,
+	".js":     true,
+	".ts":     true,
+	".tsx":    true,
+	".py":     true,
+	".java":   true,
+	".gradle": true,
+	// 暂不支持，但已识别
+	".html": false,
+	".htm":  false,
+	".json": false,
 }
 
 // LoadDocument 加载单个文档
@@ -159,6 +167,9 @@ func CreateLoader(file *os.File, path string) (documentloaders.Loader, error) {
 		return documentloaders.NewPDF(file, fileInfo.Size()), nil
 	case ".csv":
 		return documentloaders.NewCSV(file), nil
+	// 将常见的代码文件视为纯文本
+	case ".go", ".js", ".ts", ".tsx", ".py", ".java", ".gradle":
+		return documentloaders.NewText(file), nil
 	case ".html", ".htm":
 		return nil, &RagError{
 			Code:    "loader_not_implemented",

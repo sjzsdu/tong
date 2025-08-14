@@ -19,6 +19,10 @@ var projectCmd = &cobra.Command{
   search  搜索项目节点
   blame   统计作者/时间粒度的提交变更
   rag     基于项目节点索引并检索文档
+  profile 项目画像与规模分级
+  index   构建/更新语义索引
+  doc     生成基础文档
+  ask     基于RAG的问答
 
 示例：
   tong project tree                    # 显示当前目录的树状结构
@@ -45,6 +49,10 @@ func init() {
 	projectCmd.AddCommand(project.SearchCmd)
 	projectCmd.AddCommand(project.BlameCmd)
 	projectCmd.AddCommand(project.RagCmd)
+	projectCmd.AddCommand(project.ProfileCmd)
+	projectCmd.AddCommand(project.IndexCmd)
+	projectCmd.AddCommand(project.DocCmd)
+	projectCmd.AddCommand(project.AskCmd)
 
 	projectCmd.PersistentFlags().StringVarP(&workDir, "directory", "d", ".", lang.T("Work directory path"))
 	projectCmd.PersistentFlags().StringSliceVarP(&extensions, "extensions", "e", []string{"*"}, lang.T("File extensions to include"))
@@ -62,6 +70,6 @@ func runproject(cmd *cobra.Command, args []string) {
 
 	switch args[0] {
 	default:
-		fmt.Println("支持的操作: pack, code, deps, quality, search, blame, rag")
+		fmt.Println("支持的操作: pack, code, deps, quality, search, blame, rag, profile, index, doc, ask")
 	}
 }
