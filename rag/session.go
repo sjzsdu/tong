@@ -21,7 +21,7 @@ type Session struct {
 func NewSession(llm llms.Model, retriever schema.Retriever, options SessionOptions) *Session {
 	// 创建基于检索的问答链
 	chain := chains.NewRetrievalQAFromLLM(llm, retriever)
-
+	chain.InputKey = "input"
 	return &Session{
 		Chain:   chain,
 		Options: options,
@@ -42,7 +42,7 @@ func (s *Session) Start(ctx context.Context) error {
 // Query 执行单次查询
 func (s *Session) Query(ctx context.Context, query string) (string, error) {
 	result, err := chains.Call(ctx, s.Chain, map[string]any{
-		"query": query,
+		"input": query,
 	})
 	if err != nil {
 		return "", &RagError{

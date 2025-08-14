@@ -27,7 +27,6 @@ func InitializeFromConfig(ctx context.Context, masterLLM llms.Model, embeddingMo
 	if share.GetDebug() {
 		fmt.Println("[DEBUG] vector store ready")
 	}
-
 	// 创建检索器
 	retriever := CreateRetriever(vectorStore, options.Retriever)
 	if share.GetDebug() {

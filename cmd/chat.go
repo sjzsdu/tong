@@ -14,8 +14,8 @@ import (
 
 var chatCmd = &cobra.Command{
 	Use:   "chat",
-	Short: lang.T("Chat to the project"),
-	Long:  lang.T("Chat to the project"),
+	Short: lang.T("Chat to AI"),
+	Long:  lang.T("Chat to AI"),
 	Run:   runChat,
 }
 
