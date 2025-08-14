@@ -1,21 +1,35 @@
 package mcpserver
 
 import (
-	"context"
+	"errors"
 
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/sjzsdu/tong/project"
+	"github.com/sjzsdu/tong/share"
 )
 
 // TongMCPServer 实现基于 Tong project 包的 MCP 服务器
+// （保留占位结构，后续可扩展为有状态的会话管理）
 type TongMCPServer struct {
 	project     *project.Project
 	projectPath string
-	handlers    map[string]func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)
 }
 
 // NewTongMCPServer 创建一个新的 Tong MCP 服务器
-func NewTongMCPServer(project *project.Project) (*server.MCPServer, error) {
-	return nil, nil
+func NewTongMCPServer(proj *project.Project) (*server.MCPServer, error) {
+	if proj == nil {
+		return nil, errors.New("project is nil")
+	}
+
+	// 创建 MCP 服务器（启用工具能力）
+	s := server.NewMCPServer(
+		"Tong MCP Server",
+		share.VERSION,
+		server.WithToolCapabilities(false),
+	)
+
+	// 注册文件系统工具
+	RegisterFileTools(s, proj)
+
+	return s, nil
 }

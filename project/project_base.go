@@ -2,6 +2,7 @@ package project
 
 import (
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -63,13 +64,9 @@ func (p *Project) SetInGit(inGit bool) {
 
 // GetAbsolutePath 获取项目中节点的绝对路径
 func (p *Project) GetAbsolutePath(relativePath string) string {
-	// 确保相对路径以 / 开头
-	cleanPath := relativePath
-	if len(cleanPath) > 0 && cleanPath[0] != '/' {
-		cleanPath = "/" + cleanPath
-	}
-
-	return filepath.Join(p.rootPath, cleanPath)
+	// 统一为相对路径（去掉前导 /）
+	clean := strings.TrimPrefix(relativePath, "/")
+	return filepath.Join(p.rootPath, clean)
 }
 
 // 项目注册表，用于根据根节点查找项目实例
