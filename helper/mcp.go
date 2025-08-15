@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -11,6 +12,33 @@ import (
 
 // TimeLayout is the common time format layout.
 const TimeLayout = "2006-01-02 15:04:05"
+
+// GetFloatDefault returns float value from args with default.
+func GetFloatDefault(args map[string]any, key string, def float64) float64 {
+	if args == nil {
+		return def
+	}
+	if v, ok := args[key]; ok {
+		switch vv := v.(type) {
+		case float64:
+			return vv
+		case int:
+			return float64(vv)
+		case int32:
+			return float64(vv)
+		case int64:
+			return float64(vv)
+		case string:
+			if vv == "" {
+				return def
+			}
+			if iv, err := strconv.ParseFloat(vv, 64); err == nil {
+				return iv
+			}
+		}
+	}
+	return def
+}
 
 // GetArgs extracts argument map from a CallToolRequest.
 func GetArgs(req mcp.CallToolRequest) map[string]any {

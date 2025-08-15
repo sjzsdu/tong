@@ -31,5 +31,8 @@ func NewTongMCPServer(proj *project.Project) (*server.MCPServer, error) {
 	// 注册文件系统工具
 	RegisterFileTools(s, proj)
 
+	// 注册Web相关工具
+	RegisterWebTools(s)
+
 	return s, nil
 }

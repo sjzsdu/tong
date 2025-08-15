@@ -26,7 +26,9 @@ func RegisterFileTools(s *server.MCPServer, proj *project.Project) {
 		mcp.WithBoolean("includeDirs", mcp.Description("结果是否包含目录，默认 false")),
 		mcp.WithBoolean("includeHidden", mcp.Description("是否包含隐藏文件/目录，默认 false")),
 	)
-	hList := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) { return fsList(ctx, proj, req) }
+	hList := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return fsList(ctx, proj, req)
+	}
 	s.AddTool(toolList, hList)
 	toolHandlers["fs_list"] = hList
 
@@ -36,7 +38,9 @@ func RegisterFileTools(s *server.MCPServer, proj *project.Project) {
 		mcp.WithDescription("读取文件内容（文本）"),
 		mcp.WithString("path", mcp.Required(), mcp.Description("文件路径，如 /README.md")),
 	)
-	hRead := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) { return fsRead(ctx, proj, req) }
+	hRead := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return fsRead(ctx, proj, req)
+	}
 	s.AddTool(toolRead, hRead)
 	toolHandlers["fs_read"] = hRead
 
@@ -47,7 +51,9 @@ func RegisterFileTools(s *server.MCPServer, proj *project.Project) {
 		mcp.WithString("path", mcp.Required(), mcp.Description("文件路径")),
 		mcp.WithString("content", mcp.Required(), mcp.Description("要写入的文本内容")),
 	)
-	hWrite := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) { return fsWrite(ctx, proj, req) }
+	hWrite := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return fsWrite(ctx, proj, req)
+	}
 	s.AddTool(toolWrite, hWrite)
 	toolHandlers["fs_write"] = hWrite
 
@@ -58,7 +64,9 @@ func RegisterFileTools(s *server.MCPServer, proj *project.Project) {
 		mcp.WithString("path", mcp.Required(), mcp.Description("文件路径")),
 		mcp.WithString("content", mcp.Description("初始文本内容，可选")),
 	)
-	hCreateFile := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) { return fsCreateFile(ctx, proj, req) }
+	hCreateFile := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return fsCreateFile(ctx, proj, req)
+	}
 	s.AddTool(toolCreateFile, hCreateFile)
 	toolHandlers["fs_create_file"] = hCreateFile
 
@@ -68,7 +76,9 @@ func RegisterFileTools(s *server.MCPServer, proj *project.Project) {
 		mcp.WithDescription("创建目录（递归创建父目录）"),
 		mcp.WithString("path", mcp.Required(), mcp.Description("目录路径")),
 	)
-	hCreateDir := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) { return fsCreateDir(ctx, proj, req) }
+	hCreateDir := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return fsCreateDir(ctx, proj, req)
+	}
 	s.AddTool(toolCreateDir, hCreateDir)
 	toolHandlers["fs_create_dir"] = hCreateDir
 
@@ -78,7 +88,9 @@ func RegisterFileTools(s *server.MCPServer, proj *project.Project) {
 		mcp.WithDescription("删除文件或目录（会从项目与磁盘中移除）"),
 		mcp.WithString("path", mcp.Required(), mcp.Description("要删除的路径")),
 	)
-	hDelete := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) { return fsDelete(ctx, proj, req) }
+	hDelete := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return fsDelete(ctx, proj, req)
+	}
 	s.AddTool(toolDelete, hDelete)
 	toolHandlers["fs_delete"] = hDelete
 
@@ -91,7 +103,9 @@ func RegisterFileTools(s *server.MCPServer, proj *project.Project) {
 		mcp.WithBoolean("showHidden", mcp.Description("是否显示隐藏项，默认 false")),
 		mcp.WithNumber("maxDepth", mcp.Description("最大深度（0 表示不限制）")),
 	)
-	hTree := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) { return fsTree(ctx, proj, req) }
+	hTree := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return fsTree(ctx, proj, req)
+	}
 	s.AddTool(toolTree, hTree)
 	toolHandlers["fs_tree"] = hTree
 
@@ -112,7 +126,9 @@ func RegisterFileTools(s *server.MCPServer, proj *project.Project) {
 		mcp.WithBoolean("matchAny", mcp.Description("名称或内容任一匹配即命中，默认 false(与逻辑)")),
 		mcp.WithNumber("maxDepth", mcp.Description("最大深度，0 不限")),
 	)
-	hSearch := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) { return fsSearch(ctx, proj, req) }
+	hSearch := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return fsSearch(ctx, proj, req)
+	}
 	s.AddTool(toolSearch, hSearch)
 	toolHandlers["fs_search"] = hSearch
 
@@ -123,7 +139,9 @@ func RegisterFileTools(s *server.MCPServer, proj *project.Project) {
 		mcp.WithString("path", mcp.Required(), mcp.Description("路径")),
 		mcp.WithBoolean("hash", mcp.Description("是否计算文件/目录哈希，默认 false")),
 	)
-	hStat := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) { return fsStat(ctx, proj, req) }
+	hStat := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return fsStat(ctx, proj, req)
+	}
 	s.AddTool(toolStat, hStat)
 	toolHandlers["fs_stat"] = hStat
 
@@ -133,7 +151,9 @@ func RegisterFileTools(s *server.MCPServer, proj *project.Project) {
 		mcp.WithDescription("计算文件或目录的内容哈希（目录为结构哈希）"),
 		mcp.WithString("path", mcp.Required(), mcp.Description("路径")),
 	)
-	hHash := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) { return fsHash(ctx, proj, req) }
+	hHash := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return fsHash(ctx, proj, req)
+	}
 	s.AddTool(toolHash, hHash)
 	toolHandlers["fs_hash"] = hHash
 
@@ -142,7 +162,9 @@ func RegisterFileTools(s *server.MCPServer, proj *project.Project) {
 		"fs_save",
 		mcp.WithDescription("将项目的内存状态保存到磁盘（确保目录/新文件落盘）"),
 	)
-	hSave := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) { return fsSave(ctx, proj, req) }
+	hSave := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return fsSave(ctx, proj, req)
+	}
 	s.AddTool(toolSave, hSave)
 	toolHandlers["fs_save"] = hSave
 
@@ -151,7 +173,9 @@ func RegisterFileTools(s *server.MCPServer, proj *project.Project) {
 		"fs_sync",
 		mcp.WithDescription("从磁盘同步文件树到内存（会重建节点映射）"),
 	)
-	hSync := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) { return fsSync(ctx, proj, req) }
+	hSync := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return fsSync(ctx, proj, req)
+	}
 	s.AddTool(toolSync, hSync)
 	toolHandlers["fs_sync"] = hSync
 }
