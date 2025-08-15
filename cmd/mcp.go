@@ -3,11 +3,14 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"os"
 	"sort"
 	"strings"
 
+	"github.com/mark3labs/mcp-go/server"
 	configPackage "github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/lang"
+	"github.com/sjzsdu/tong/mcpserver"
 	"github.com/spf13/cobra"
 )
 
@@ -18,18 +21,35 @@ var mcpCmd = &cobra.Command{
 	Run:   runMCP,
 }
 
+var (
+	mcpTransport string
+	mcpPortFlag  string
+	mcpDebug     bool
+)
+
 func init() {
 	rootCmd.AddCommand(mcpCmd)
 
-	// 添加命令行参数
-	mcpCmd.Flags().IntVarP(&mcpPort, "port", "p", 8080, "Port to run the MCP server on")
-	mcpCmd.Flags().BoolVarP(&showTools, "list", "l", false, "List all available MCP tools")
+	// 添加命令行标志
+	mcpCmd.Flags().StringVar(&mcpTransport, "transport", "", "传输方式 (stdio, http, sse)，默认为 stdio")
+	mcpCmd.Flags().StringVar(&mcpPortFlag, "port", "8080", "HTTP/SSE 服务器端口，默认为 8080")
+	mcpCmd.Flags().BoolVar(&mcpDebug, "debug", false, "启用调试日志")
 }
 
 func runMCP(cmd *cobra.Command, args []string) {
 	// 检查参数是否存在
 	if len(args) == 0 {
-		fmt.Println("请指定操作类型: available, list")
+		fmt.Println("请指定操作类型:")
+		fmt.Println("  available - 列出所有可用的 MCP 服务")
+		fmt.Println("  list      - 列出当前配置的 MCP 服务")
+		fmt.Println("  server    - 启动 Tong MCP 服务器")
+		fmt.Println()
+		fmt.Println("启动服务器示例:")
+		fmt.Println("  tong mcp server                    # 使用 STDIO 传输启动")
+		fmt.Println("  tong mcp server --transport http   # 使用 HTTP 传输启动")
+		fmt.Println("  tong mcp server --transport sse    # 使用 SSE 传输启动")
+		fmt.Println("  tong mcp server --port 9000        # 指定端口启动")
+		fmt.Println("  tong mcp server --debug            # 启用调试模式")
 		cmd.Help()
 		return
 	}
@@ -41,9 +61,69 @@ func runMCP(cmd *cobra.Command, args []string) {
 	case "available":
 		// 列出所有可用的 MCP 服务
 		listAvailableMCPServers()
+	case "server":
+		// 这里运行自己的mcpserver
+		runMCPServer()
 	default:
 		fmt.Println("未知的操作类型: " + args[0])
 		cmd.Help()
+	}
+}
+
+func runMCPServer() {
+	project, err := GetProject()
+	if err != nil {
+		fmt.Printf("创建项目实例失败: %v\n", err)
+		return
+	}
+
+	// 创建 Tong MCP 服务器
+	mcpSrv, err := mcpserver.NewTongMCPServer(project)
+	if err != nil {
+		fmt.Printf("创建 MCP 服务器失败: %v\n", err)
+		return
+	}
+
+	// 使用命令行参数或环境变量
+	transport := mcpTransport
+	if transport == "" {
+		transport = os.Getenv("MCP_TRANSPORT")
+	}
+
+	port := mcpPortFlag
+	if envPort := os.Getenv("MCP_PORT"); envPort != "" {
+		port = envPort
+	}
+
+	// 如果启用了调试模式
+	if mcpDebug {
+		fmt.Printf("调试模式已启用\n")
+	}
+
+	fmt.Printf("启动 Tong MCP 服务器...\n")
+	fmt.Printf("项目路径: %s\n", project.Root())
+
+	switch transport {
+	case "http":
+		fmt.Printf("使用 HTTP 传输，端口: %s\n", port)
+		fmt.Printf("访问地址: http://localhost:%s\n", port)
+		httpServer := server.NewStreamableHTTPServer(mcpSrv)
+		if err := httpServer.Start(":" + port); err != nil {
+			log.Fatalf("HTTP 服务器启动失败: %v", err)
+		}
+	case "sse":
+		fmt.Printf("使用 SSE 传输，端口: %s\n", port)
+		fmt.Printf("访问地址: http://localhost:%s\n", port)
+		sseServer := server.NewSSEServer(mcpSrv)
+		if err := sseServer.Start(":" + port); err != nil {
+			log.Fatalf("SSE 服务器启动失败: %v", err)
+		}
+	default:
+		fmt.Println("使用 STDIO 传输")
+		fmt.Println("服务器已启动，等待客户端连接...")
+		if err := server.ServeStdio(mcpSrv); err != nil {
+			log.Fatalf("STDIO 服务器启动失败: %v", err)
+		}
 	}
 }
 

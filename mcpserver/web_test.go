@@ -89,13 +89,13 @@ func TestWebSearch_Google(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	resultText := getResultText(result)
-	
+
 	// 对于Google搜索，由于没有API密钥，可能会收到错误消息
 	// 我们只需要验证查询和引擎被包含在结果中，或者是一个有效的错误消息
-	assert.True(t, 
-		strings.Contains(resultText, "test query") || 
-		strings.Contains(resultText, "google") ||
-		strings.Contains(resultText, "HTTP request failed"),
+	assert.True(t,
+		strings.Contains(resultText, "test query") ||
+			strings.Contains(resultText, "google") ||
+			strings.Contains(resultText, "HTTP request failed"),
 		"Result should contain query, engine name, or error message")
 }
 
@@ -156,10 +156,10 @@ func TestWebSearch_Bing(t *testing.T) {
 	assert.NotNil(t, result)
 	resultText := getResultText(result)
 	// 验证包含查询和引擎信息或错误信息
-	assert.True(t, 
-		strings.Contains(resultText, "bing test") || 
-		strings.Contains(resultText, "bing") ||
-		strings.Contains(resultText, "HTTP request failed"),
+	assert.True(t,
+		strings.Contains(resultText, "bing test") ||
+			strings.Contains(resultText, "bing") ||
+			strings.Contains(resultText, "HTTP request failed"),
 		"Result should contain query, engine name, or error message")
 }
 
