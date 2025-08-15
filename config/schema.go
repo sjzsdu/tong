@@ -215,7 +215,13 @@ func DefaultSchemaConfig() *SchemaConfig {
 	rc.Sync.SyncIntervalSeconds = 300
 
 	return &SchemaConfig{
-		MCPServers: map[string]MCPServerConfig{},
+		MCPServers: map[string]MCPServerConfig{
+			"tong": {
+				Command:       "tong",
+				Args:          []string{"mcp", "server", "--transport", "stdio"},
+				TransportType: "stdio",
+			},
+		},
 		MasterLLM: LLMConfig{
 			Type:   llms.LLMType(GetConfigWithDefault("MASTER_LLM", string(llms.DeepSeekLLM))),
 			Params: map[string]interface{}{},

@@ -1,37 +1,5 @@
 {
-    "mcpServers": {
-        "filesystem": {
-            "disabled": false,
-            "timeout": 60,
-            "command": "npx",
-            "args": [
-                "-y",
-                "@modelcontextprotocol/server-filesystem",
-                "."
-            ],
-            "transportType": "stdio"
-        },
-        "sequential-thinking": {
-            "disabled": false,
-            "timeout": 60,
-            "command": "npx",
-            "args": [
-                "-y",
-                "@modelcontextprotocol/server-sequential-thinking"
-            ],
-            "transportType": "stdio"
-        },
-        "git": {
-            "command": "uvx",
-            "args": ["mcp-server-git"],
-            "transportType": "stdio"
-        },
-        "fetch": {
-            "command": "uvx",
-            "args": ["mcp-server-fetch"],
-            "transportType": "stdio"
-        }
-    },
+    "mcpServers": {},
     "masterLLM": {
         "type": "qwen",
         "params": {}

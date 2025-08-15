@@ -10,6 +10,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	configPackage "github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/lang"
+	mcpHost "github.com/sjzsdu/tong/mcp"
 	"github.com/sjzsdu/tong/mcpserver"
 	"github.com/spf13/cobra"
 )
@@ -42,6 +43,7 @@ func runMCP(cmd *cobra.Command, args []string) {
 		fmt.Println("请指定操作类型:")
 		fmt.Println("  available - 列出所有可用的 MCP 服务")
 		fmt.Println("  list      - 列出当前配置的 MCP 服务")
+		fmt.Println("  detail    - 列出当前配置的 MCP 服务及其工具详情")
 		fmt.Println("  server    - 启动 Tong MCP 服务器")
 		fmt.Println()
 		fmt.Println("启动服务器示例:")
@@ -58,6 +60,9 @@ func runMCP(cmd *cobra.Command, args []string) {
 	case "list":
 		// 列出当前配置的 MCP 服务
 		listConfiguredMCPServers()
+	case "detail":
+		// 列出当前配置的 MCP 服务
+		listMCPServersDetail()
 	case "available":
 		// 列出所有可用的 MCP 服务
 		listAvailableMCPServers()
@@ -101,7 +106,7 @@ func runMCPServer() {
 	}
 
 	fmt.Printf("启动 Tong MCP 服务器...\n")
-	fmt.Printf("项目路径: %s\n", project.Root())
+	fmt.Printf("项目路径: %s\n", project.Root().Path)
 
 	switch transport {
 	case "http":
@@ -151,6 +156,25 @@ func printMCPServices(title string, services map[string]interface{}, formatter f
 		}
 		fmt.Printf("- %s\n", output)
 	}
+}
+
+// 列出每一个mcp的所有的tool名称，参数和描述
+func listMCPServersDetail() {
+	schemaConfig, err := GetConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// 创建 MCP Host 来连接所有服务器
+	host, err := mcpHost.NewHost(schemaConfig)
+	if err != nil {
+		fmt.Printf("创建 MCP Host 失败: %v\n", err)
+		return
+	}
+	defer host.Close()
+
+	// 使用 Host 的方法显示详细工具信息
+	host.PrintListTools()
 }
 
 // listConfiguredMCPServers 列出当前配置的 MCP 服务
