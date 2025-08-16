@@ -34,5 +34,8 @@ func NewTongMCPServer(proj *project.Project) (*server.MCPServer, error) {
 	// 注册Web相关工具
 	RegisterWebTools(s)
 
+	// 注册计算机相关工具
+	RegisterComputerTools(s, proj)
+
 	return s, nil
 }

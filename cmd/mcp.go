@@ -80,6 +80,13 @@ func runMCP(cmd *cobra.Command, args []string) {
 		// 测试指定的工具
 		if len(args) == 1 {
 			fmt.Println("请指定要测试的工具名称:")
+			fmt.Println("例如: tong mcp test run_command")
+			fmt.Println("支持的工具:")
+			fmt.Println("- run_command: 执行shell命令并返回结果")
+			fmt.Println("- fs_list: 列出目录内容")
+			fmt.Println("- fs_read: 读取文件内容")
+			fmt.Println("- fs_write: 写入文件内容")
+			fmt.Println("更多工具请运行 'tong mcp detail' 查看")
 			cmd.Help()
 			return
 		}
