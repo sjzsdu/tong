@@ -15,9 +15,16 @@ func TestGetConfig(t *testing.T) {
 	os.Setenv("HOME", tmpDir)
 	defer os.Setenv("HOME", origHome)
 
+	// 清除和设置测试环境变量
+	os.Unsetenv("TONG_LANG")
+	os.Unsetenv("TONG_DEEPSEEK_APIKEY")
+	os.Unsetenv("TONG_MODEL")
+	os.Unsetenv("MODEL") // 非前缀键
+
 	// 设置测试环境变量
 	os.Setenv("TONG_LANG", "zh")
 	os.Setenv("TONG_DEEPSEEK_APIKEY", "test-key")
+	os.Setenv("MODEL", "gpt-4") // 测试非前缀的直接环境变量
 
 	tests := []struct {
 		name     string
@@ -48,6 +55,11 @@ func TestGetConfig(t *testing.T) {
 			name:     "获取不存在的配置",
 			key:      "nonexistent",
 			expected: "",
+		},
+		{
+			name:     "直接获取非前缀环境变量",
+			key:      "MODEL",
+			expected: "gpt-4",
 		},
 	}
 

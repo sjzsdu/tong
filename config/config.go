@@ -23,11 +23,20 @@ func init() {
 }
 
 func GetConfig(key string) string {
-	envKey := key
-	if !strings.HasPrefix(key, share.PREFIX) {
-		envKey = GetEnvKey(key)
+	// 1. 尝试按原样获取，可能是完整的环境变量名
+	value := os.Getenv(key)
+	if value != "" {
+		return value
 	}
-	return os.Getenv(envKey)
+
+	// 2. 如果key不是以PREFIX开头，尝试转换后获取
+	if !strings.HasPrefix(key, share.PREFIX) {
+		envKey := GetEnvKey(key)
+		return os.Getenv(envKey)
+	}
+
+	// 3. 以PREFIX开头但直接获取为空的情况
+	return ""
 }
 
 func GetConfigWithDefault(key string, defaultValue string) string {
@@ -92,20 +101,30 @@ func GetEnvKey(flagKey string) string {
 
 // SetConfig 设置配置值并更新环境变量
 func SetConfig(key, value string) {
-	envKey := key
-	if !strings.HasPrefix(key, share.PREFIX) {
-		envKey = GetEnvKey(key)
+	// 如果key已经是完整的环境变量名，直接使用
+	if strings.HasPrefix(key, share.PREFIX) {
+		configMap[key] = value
+		os.Setenv(key, value)
+		return
 	}
+
+	// 转换为环境变量名格式
+	envKey := GetEnvKey(key)
 	configMap[envKey] = value
 	os.Setenv(envKey, value)
 }
 
 // ClearConfig 清除指定配置
 func ClearConfig(key string) {
-	envKey := key
-	if !strings.HasPrefix(key, share.PREFIX) {
-		envKey = GetEnvKey(key)
+	// 如果key已经是完整的环境变量名，直接使用
+	if strings.HasPrefix(key, share.PREFIX) {
+		delete(configMap, key)
+		os.Unsetenv(key)
+		return
 	}
+
+	// 转换为环境变量名格式
+	envKey := GetEnvKey(key)
 	delete(configMap, envKey)
 	os.Unsetenv(envKey)
 }
