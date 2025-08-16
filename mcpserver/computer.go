@@ -36,15 +36,14 @@ func RegisterComputerTools(s *server.MCPServer, proj *project.Project) {
 // runCommand 执行命令并返回结果
 func runCommand(ctx context.Context, proj *project.Project, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	// 获取命令参数
-	command, err := req.RequireString("command")
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("命令参数错误: %v", err)), nil
+	command, found := helper.GetStringFromRequest(req, "command", "")
+	if !found {
+		return mcp.NewToolResultError("missing or invalid command parameter: required argument \"command\" not found"), nil
 	}
 
 	// 获取工作目录参数（可选）
 	workDir := proj.GetRootPath() // 默认为项目根目录
-	args := helper.GetArgs(req)
-	wd := helper.GetStringDefault(args, "workDir", "")
+	wd, _ := helper.GetStringFromRequest(req, "workDir", "")
 	if wd != "" {
 		// 确保工作目录是项目内的目录
 		wd = proj.NormalizePath(wd)

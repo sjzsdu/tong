@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
+	neturl "net/url"
 	"strings"
 	"time"
 
@@ -45,10 +45,9 @@ func RegisterWebTools(s *server.MCPServer) {
 	// web_search 工具 - 搜索获取信息
 	toolSearch := mcp.NewTool(
 		"web_search",
-		mcp.WithDescription("通过搜索引擎获取信息，优先级由SEARCH_ENGINES配置决定"),
+		mcp.WithDescription("通过搜索引擎获取信息"),
 		mcp.WithString("query", mcp.Required(), mcp.Description("搜索关键词")),
-		mcp.WithString("engine", mcp.Description("可选：指定搜索引擎，支持：google, bing, baidu, duckduckgo。若未指定则按SEARCH_ENGINES配置的优先级自动选择")),
-		mcp.WithNumber("limit", mcp.Description("返回结果数量，默认为5")),
+		mcp.WithNumber("limit", mcp.Description("返回结果数量")),
 	)
 	hSearch := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return webSearch(ctx, req)
@@ -64,22 +63,21 @@ func webFetch(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult
 		timeout float64 = 10.0
 	)
 
-	// 直接获取url参数
-	urlStr, err := req.RequireString("url")
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("missing or invalid url parameter: %v", err)), nil
+	// 使用辅助函数获取url参数
+	url, found := helper.GetStringFromRequest(req, "url", "")
+	if !found {
+		return mcp.NewToolResultError("missing or invalid url parameter: required argument \"url\" not found"), nil
 	}
-	urlStr = strings.TrimSpace(urlStr)
+	urlStr = strings.TrimSpace(url)
 
-	// 提取参数
-	args := helper.GetArgs(req)
-	if args != nil {
-		// 获取timeout参数
-		timeout = helper.GetFloatDefault(args, "timeout", timeout)
+	// 使用辅助函数获取timeout参数
+	timeoutVal, found := helper.GetFloatFromRequest(req, "timeout", timeout)
+	if found {
+		timeout = timeoutVal
 	}
 
 	// normalize URL
-	if parsed, perr := url.Parse(urlStr); perr == nil && parsed.Scheme == "" {
+	if parsed, perr := neturl.Parse(urlStr); perr == nil && parsed.Scheme == "" {
 		urlStr = "https://" + urlStr
 	}
 
@@ -154,17 +152,17 @@ func webSearch(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResul
 		helper.PrintWithLabel("web_search request", req)
 	}
 
-	// 解析参数
-	query, err := req.RequireString("query")
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("missing or invalid query parameter: %v", err)), nil
+	// 使用辅助函数获取query参数
+	query, found := helper.GetStringFromRequest(req, "query", "")
+	if !found {
+		return mcp.NewToolResultError("missing or invalid query parameter: required argument \"query\" not found"), nil
 	}
 
-	// 解析参数
-	args := helper.GetArgs(req)
-
-	// 解析结果数量参数，默认为5
-	limit := helper.GetIntDefault(args, "limit", 5)
+	// 使用辅助函数获取limit参数，默认为5
+	limit, _ := helper.GetIntFromRequest(req, "limit", 5)
+	
+	// 使用辅助函数获取engine参数
+	userEngine, _ := helper.GetStringFromRequest(req, "engine", "")
 
 	// 从配置中获取API密钥
 	googleApiKey := config.GetConfig(config.KeyGoogleAPIKey)
@@ -194,7 +192,6 @@ func webSearch(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResul
 	enginePriority := strings.Split(config.GetConfigWithDefault(config.KeySearchEngines, "google,baidu,bing"), ",")
 
 	// 如果用户明确指定了搜索引擎，且该引擎可用，则使用该引擎
-	userEngine := helper.GetStringDefault(args, "engine", "")
 	var engine string
 
 	if userEngine != "" && availableEngines[userEngine] {

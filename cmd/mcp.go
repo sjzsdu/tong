@@ -168,7 +168,7 @@ func testToolCall(toolName string) {
 `, targetTool.Name(), targetTool.Description(), paramInfo)
 
 	// 询问用户是否要自行输入参数
-	userWantsInput, err := helper.PromptYesNo("\n是否要自行输入参数? (y/n) ", false)
+	userWantsInput, err := helper.PromptYesNo("\n是否要自行输入参数? (y/n) \n", false)
 	if err != nil {
 		fmt.Printf("读取用户输入时出错: %v\n", err)
 		return

@@ -42,15 +42,15 @@ func ensureParentDirs(proj *project.Project, path string) error {
 }
 
 func fsList(ctx context.Context, proj *project.Project, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	dir, err := req.RequireString("dir")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+	dir, found := helper.GetStringFromRequest(req, "dir", "")
+	if !found {
+		return mcp.NewToolResultError("missing or invalid dir parameter: required argument \"dir\" not found"), nil
 	}
-	args := helper.GetArgs(req)
-	maxDepth := helper.GetIntDefault(args, "maxDepth", 1)
-	includeFiles := helper.GetBoolDefault(args, "includeFiles", true)
-	includeDirs := helper.GetBoolDefault(args, "includeDirs", false)
-	includeHidden := helper.GetBoolDefault(args, "includeHidden", false)
+	
+	maxDepth, _ := helper.GetIntFromRequest(req, "maxDepth", 1)
+	includeFiles, _ := helper.GetBoolFromRequest(req, "includeFiles", true)
+	includeDirs, _ := helper.GetBoolFromRequest(req, "includeDirs", false)
+	includeHidden, _ := helper.GetBoolFromRequest(req, "includeHidden", false)
 
 	dir = proj.NormalizePath(dir)
 	n, err := proj.FindNode(dir)
@@ -93,9 +93,9 @@ func fsList(ctx context.Context, proj *project.Project, req mcp.CallToolRequest)
 }
 
 func fsRead(ctx context.Context, proj *project.Project, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	p, err := req.RequireString("path")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+	p, found := helper.GetStringFromRequest(req, "path", "")
+	if !found {
+		return mcp.NewToolResultError("missing or invalid path parameter: required argument \"path\" not found"), nil
 	}
 	p = proj.NormalizePath(p)
 	n, err := proj.FindNode(p)

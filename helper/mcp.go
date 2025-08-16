@@ -53,6 +53,204 @@ func GetArgs(req mcp.CallToolRequest) map[string]any {
 	}
 }
 
+// GetStringFromRequest 从请求中获取字符串参数，支持顶层和嵌套的args结构
+func GetStringFromRequest(req mcp.CallToolRequest, key string, def string) (string, bool) {
+	// 首先尝试从顶层获取
+	if val, err := req.RequireString(key); err == nil && val != "" {
+		return val, true
+	}
+
+	// 如果顶层没有，尝试从args中获取
+	args := GetArgs(req)
+	if args != nil {
+		// 直接从args中查找
+		if val, ok := args[key].(string); ok && val != "" {
+			return val, true
+		}
+
+		// 检查是否有嵌套的args结构
+		if nestedArgs, ok := args["args"].(map[string]interface{}); ok && nestedArgs != nil {
+			if val, ok := nestedArgs[key].(string); ok && val != "" {
+				return val, true
+			}
+		}
+	}
+
+	return def, false
+}
+
+// GetIntFromRequest 从请求中获取整数参数，支持顶层和嵌套的args结构
+func GetIntFromRequest(req mcp.CallToolRequest, key string, def int) (int, bool) {
+	// 尝试从顶层获取（先尝试获取字符串然后转换）
+	if valStr, err := req.RequireString(key); err == nil && valStr != "" {
+		if iv, err := atoiSafe(valStr); err == nil {
+			return iv, true
+		}
+	}
+	
+	// 如果顶层没有，尝试从args中获取
+	args := GetArgs(req)
+	if args != nil {
+		// 直接从args中查找
+		if val, ok := args[key]; ok {
+			switch v := val.(type) {
+			case int:
+				return v, true
+			case int32:
+				return int(v), true
+			case int64:
+				return int(v), true
+			case float64:
+				return int(v), true
+			case string:
+				if v != "" {
+					if iv, err := atoiSafe(v); err == nil {
+						return iv, true
+					}
+				}
+			}
+		}
+		
+		// 检查是否有嵌套的args结构
+		if nestedArgs, ok := args["args"].(map[string]interface{}); ok && nestedArgs != nil {
+			if val, ok := nestedArgs[key]; ok {
+				switch v := val.(type) {
+				case int:
+					return v, true
+				case int32:
+					return int(v), true
+				case int64:
+					return int(v), true
+				case float64:
+					return int(v), true
+				case string:
+					if v != "" {
+						if iv, err := atoiSafe(v); err == nil {
+							return iv, true
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	return def, false
+}
+
+// GetBoolFromRequest 从请求中获取布尔参数，支持顶层和嵌套的args结构
+func GetBoolFromRequest(req mcp.CallToolRequest, key string, def bool) (bool, bool) {
+	// 尝试从顶层获取（先尝试获取字符串然后转换）
+	if valStr, err := req.RequireString(key); err == nil && valStr != "" {
+		if strings.EqualFold(valStr, "true") {
+			return true, true
+		} else if strings.EqualFold(valStr, "false") {
+			return false, true
+		}
+	}
+	
+	// 如果顶层没有，尝试从args中获取
+	args := GetArgs(req)
+	if args != nil {
+		// 直接从args中查找
+		if val, ok := args[key]; ok {
+			switch v := val.(type) {
+			case bool:
+				return v, true
+			case string:
+				if strings.EqualFold(v, "true") {
+					return true, true
+				} else if strings.EqualFold(v, "false") {
+					return false, true
+				}
+			case float64:
+				return v != 0, true
+			case int:
+				return v != 0, true
+			}
+		}
+		
+		// 检查是否有嵌套的args结构
+		if nestedArgs, ok := args["args"].(map[string]interface{}); ok && nestedArgs != nil {
+			if val, ok := nestedArgs[key]; ok {
+				switch v := val.(type) {
+				case bool:
+					return v, true
+				case string:
+					if strings.EqualFold(v, "true") {
+						return true, true
+					} else if strings.EqualFold(v, "false") {
+						return false, true
+					}
+				case float64:
+					return v != 0, true
+				case int:
+					return v != 0, true
+				}
+			}
+		}
+	}
+	
+	return def, false
+}
+
+// GetFloatFromRequest 从请求中获取浮点数参数，支持顶层和嵌套的args结构
+func GetFloatFromRequest(req mcp.CallToolRequest, key string, def float64) (float64, bool) {
+	// 尝试从顶层获取（先尝试获取字符串然后转换）
+	if valStr, err := req.RequireString(key); err == nil && valStr != "" {
+		if fv, err := strconv.ParseFloat(valStr, 64); err == nil {
+			return fv, true
+		}
+	}
+	
+	// 如果顶层没有，尝试从args中获取
+	args := GetArgs(req)
+	if args != nil {
+		// 直接从args中查找
+		if val, ok := args[key]; ok {
+			switch v := val.(type) {
+			case float64:
+				return v, true
+			case int:
+				return float64(v), true
+			case int32:
+				return float64(v), true
+			case int64:
+				return float64(v), true
+			case string:
+				if v != "" {
+					if fv, err := strconv.ParseFloat(v, 64); err == nil {
+						return fv, true
+					}
+				}
+			}
+		}
+		
+		// 检查是否有嵌套的args结构
+		if nestedArgs, ok := args["args"].(map[string]interface{}); ok && nestedArgs != nil {
+			if val, ok := nestedArgs[key]; ok {
+				switch v := val.(type) {
+				case float64:
+					return v, true
+				case int:
+					return float64(v), true
+				case int32:
+					return float64(v), true
+				case int64:
+					return float64(v), true
+				case string:
+					if v != "" {
+						if fv, err := strconv.ParseFloat(v, 64); err == nil {
+							return fv, true
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	return def, false
+}
+
 // ToJSON pretty prints any value as JSON string.
 func ToJSON(v any) string {
 	b, err := json.MarshalIndent(v, "", "  ")
