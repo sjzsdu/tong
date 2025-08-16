@@ -193,9 +193,9 @@ func webSearch(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResul
 	limit := helper.GetIntDefault(args, "limit", 5)
 
 	// 从配置中获取API密钥
-	googleApiKey := config.GetConfig("GOOGLE_API_KEY")
-	googleSearchEngineId := config.GetConfig("GOOGLE_SEARCH_ENGINE_ID")
-	bingApiKey := config.GetConfig("BING_API_KEY")
+	googleApiKey := config.GetConfig(config.KeyGoogleAPIKey)
+	googleSearchEngineId := config.GetConfig(config.KeyGoogleSearchEngineID)
+	bingApiKey := config.GetConfig(config.KeyBingAPIKey)
 
 	// 确定可用的搜索引擎列表
 	availableEngines := make(map[string]bool)
@@ -217,7 +217,7 @@ func webSearch(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResul
 	availableEngines["duckduckgo"] = true
 
 	// 从配置中获取搜索引擎优先级
-	enginePriority := strings.Split(config.GetConfigWithDefault("SEARCH_ENGINES", "google,baidu,bing,duckduckgo"), ",")
+	enginePriority := strings.Split(config.GetConfigWithDefault(config.KeySearchEngines, "google,baidu,bing,duckduckgo"), ",")
 
 	// 如果用户明确指定了搜索引擎，且该引擎可用，则使用该引擎
 	userEngine := helper.GetStringDefault(args, "engine", "")
