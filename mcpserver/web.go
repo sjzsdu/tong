@@ -290,10 +290,10 @@ func searchWithWebFetch(ctx context.Context, engine string, query string, limit 
 	var searchURL string
 	switch engine {
 	case "google":
-		searchURL = fmt.Sprintf("https://www.google.com/search?q=%s&num=%d", 
+		searchURL = fmt.Sprintf("https://www.google.com/search?q=%s&num=%d",
 			url.QueryEscape(query), limit)
 	case "bing":
-		searchURL = fmt.Sprintf("https://www.bing.com/search?q=%s&count=%d", 
+		searchURL = fmt.Sprintf("https://www.bing.com/search?q=%s&count=%d",
 			url.QueryEscape(query), limit)
 	case "baidu":
 		searchURL = fmt.Sprintf("https://www.baidu.com/s?wd=%s&rn=%d",

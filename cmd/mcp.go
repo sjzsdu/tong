@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"bufio"
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -8,11 +10,16 @@ import (
 	"strings"
 
 	"github.com/mark3labs/mcp-go/server"
+	llms "github.com/sjzsdu/langchaingo-cn/llms"
 	configPackage "github.com/sjzsdu/tong/config"
+	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/lang"
 	mcpHost "github.com/sjzsdu/tong/mcp"
 	"github.com/sjzsdu/tong/mcpserver"
+	"github.com/sjzsdu/tong/share"
 	"github.com/spf13/cobra"
+	llmsPack "github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/tools"
 )
 
 var mcpCmd = &cobra.Command{
@@ -69,10 +76,152 @@ func runMCP(cmd *cobra.Command, args []string) {
 	case "server":
 		// 这里运行自己的mcpserver
 		runMCPServer()
+	case "test":
+		// 测试指定的工具
+		if len(args) == 1 {
+			fmt.Println("请指定要测试的工具名称:")
+			cmd.Help()
+			return
+		}
+		testToolCall(args[1])
 	default:
 		fmt.Println("未知的操作类型: " + args[0])
 		cmd.Help()
 	}
+}
+
+func testToolCall(toolName string) {
+	// 获取配置
+	config, err := GetConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Initialize LLM
+	llm, err := llms.CreateLLM(config.MasterLLM.Type, config.MasterLLM.Params)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	if share.GetDebug() {
+		helper.PrintWithLabel("配置信息:", config)
+	}
+
+	host, err := mcpHost.NewHost(config)
+	if err != nil {
+		log.Fatalf("创建 MCP Host 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	schemeTools, err := host.GetTools(ctx)
+	if err != nil {
+		fmt.Printf("警告: 获取 MCP 工具失败: %v\n将继续执行但功能可能受限\n", err)
+		schemeTools = []tools.Tool{}
+	}
+
+	// 找到指定的工具
+	var targetTool tools.Tool
+	var foundTool bool
+	for _, tool := range schemeTools {
+		if tool.Name() == toolName {
+			targetTool = tool
+			foundTool = true
+			break
+		}
+	}
+
+	if !foundTool {
+		fmt.Printf("找不到工具: %s\n", toolName)
+		fmt.Println("可用的工具有:")
+		for _, tool := range schemeTools {
+			fmt.Printf("- %s: %s\n", tool.Name(), tool.Description())
+		}
+		return
+	}
+
+	// 打印工具信息
+	fmt.Printf("===== 工具信息 =====\n")
+	fmt.Printf("名称: %s\n", targetTool.Name())
+	fmt.Printf("描述: %s\n", targetTool.Description())
+
+	// 获取工具的参数信息（如果可用）
+	paramInfo := ""
+
+	// 尝试从工具的源代码中提取参数信息
+	toolSource, err := host.GetToolSchema(toolName)
+	if err == nil && toolSource != "" {
+		paramInfo = fmt.Sprintf("参数结构: %s", toolSource)
+	}
+
+	// 构建提示词，让LLM生成参数
+	prompt := fmt.Sprintf(`请为以下工具生成调用参数：
+工具名称: %s
+工具描述: %s
+%s
+
+你需要生成一个有效的JSON对象作为工具的调用参数。必须是有效的JSON格式，只返回JSON对象，不要有其他说明文字。
+`, targetTool.Name(), targetTool.Description(), paramInfo)
+
+	// 询问用户是否要自行输入参数
+	fmt.Println("\n是否要自行输入参数? (y/n)")
+	var userChoice string
+	fmt.Scanln(&userChoice)
+
+	var generatedParams string
+
+	if strings.ToLower(userChoice) == "y" {
+		// 用户自行输入参数
+		fmt.Println("请输入JSON格式的参数:")
+		reader := bufio.NewReader(os.Stdin)
+		generatedParams, _ = reader.ReadString('\n')
+		generatedParams = strings.TrimSpace(generatedParams)
+	} else {
+		// 使用 GenerateContent 方法替代弃用的 Call 方法
+		msgs := []llmsPack.MessageContent{
+			{
+				Role:  llmsPack.ChatMessageTypeSystem,
+				Parts: []llmsPack.ContentPart{llmsPack.TextPart(prompt)},
+			},
+		}
+
+		response, err := llm.GenerateContent(ctx, msgs)
+		if err != nil {
+			fmt.Printf("生成参数失败: %v\n", err)
+			return
+		}
+
+		// 获取生成的内容
+		llmResult := ""
+		if len(response.Choices) > 0 {
+			llmResult = response.Choices[0].Content
+		}
+
+		// 提取LLM生成的参数（从字符串中提取JSON）
+		// 查找第一个 { 和最后一个 }
+		var startIdx, endIdx int
+		startIdx = strings.Index(llmResult, "{")
+		endIdx = strings.LastIndex(llmResult, "}")
+
+		if startIdx >= 0 && endIdx > startIdx {
+			generatedParams = llmResult[startIdx : endIdx+1]
+		} else {
+			fmt.Println("LLM未能生成有效的JSON参数，将使用空参数")
+			generatedParams = "{}"
+		}
+	}
+
+	fmt.Printf("\n===== 生成的参数 =====\n%s\n", generatedParams)
+
+	// 执行工具调用
+	fmt.Printf("\n===== 执行工具调用 =====\n")
+	toolResult, toolErr := targetTool.Call(ctx, generatedParams)
+	if toolErr != nil {
+		fmt.Printf("调用工具失败: %v\n", toolErr)
+		return
+	}
+
+	// 打印结果
+	fmt.Printf("\n===== 工具调用结果 =====\n%s\n", toolResult)
 }
 
 func runMCPServer() {

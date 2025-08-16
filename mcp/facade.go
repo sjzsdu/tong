@@ -2,7 +2,9 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -111,4 +113,68 @@ func (host *Host) PrintListTools() {
 			fmt.Println()
 		}
 	}
+}
+
+func (host *Host) GetToolSchema(toolName string) (string, error) {
+	// 创建工具列表请求
+	request := mcp.ListToolsRequest{}
+	// 创建上下文
+	ctx, cancel := context.WithTimeout(context.Background(), share.TIMEOUT_MCP)
+	defer cancel()
+	// 获取工具列表
+	results, err := host.ListTools(ctx, request)
+	if err != nil {
+		return "", err
+	}
+
+	// 查找指定工具的信息
+	for _, result := range results {
+		for _, tool := range result.Tools {
+			if tool.Name == toolName {
+				// 尝试获取参数信息 - 使用反射检查结构
+				toolVal := reflect.ValueOf(tool)
+
+				// 如果是指针，获取其指向的值
+				if toolVal.Kind() == reflect.Ptr && !toolVal.IsNil() {
+					toolVal = toolVal.Elem()
+				}
+
+				// 只有当值是结构体时才尝试获取字段
+				if toolVal.Kind() == reflect.Struct {
+					// 尝试查找可能的参数字段
+					paramFields := []string{"Parameters", "Schema", "Args", "Params"}
+					for _, fieldName := range paramFields {
+						field := toolVal.FieldByName(fieldName)
+						if field.IsValid() && !field.IsZero() {
+							// 找到了参数字段，尝试序列化
+							paramsBytes, err := json.MarshalIndent(field.Interface(), "", "  ")
+							if err == nil && len(paramsBytes) > 0 {
+								return string(paramsBytes), nil
+							}
+						}
+					}
+				}
+
+				// 如果没有找到参数信息，尝试序列化整个工具对象
+				toolBytes, err := json.MarshalIndent(tool, "", "  ")
+				if err == nil && len(toolBytes) > 0 {
+					return string(toolBytes), nil
+				}
+
+				// 最后返回工具描述
+				return fmt.Sprintf("工具 %s 的参数说明: %s", toolName, tool.Description), nil
+			}
+		}
+	}
+
+	// 检查是否是自定义工具
+	customTools := GetCustomTools()
+	for _, tool := range customTools {
+		if tool.Name() == toolName {
+			// 这里我们尝试从描述中解析参数信息
+			return fmt.Sprintf("自定义工具参数信息: %s", tool.Description()), nil
+		}
+	}
+
+	return "", fmt.Errorf("找不到工具 %s 的参数信息", toolName)
 }
