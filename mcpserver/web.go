@@ -1,6 +1,9 @@
 package mcpserver
 
 import (
+	"compress/flate"
+	"compress/gzip"
+	"compress/zlib"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,9 +14,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/sjzsdu/tong/helper"
+	"github.com/sjzsdu/tong/share"
+	"golang.org/x/net/html/charset"
 )
 
 // RegisterWebTools 将Web相关工具注册到MCP服务器
@@ -59,68 +65,272 @@ type SearchResult struct {
 
 // webFetch 获取网页内容
 func webFetch(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// 解析参数
-	urlStr, err := req.RequireString("url")
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("missing or invalid url parameter: %v", err)), nil
+	// parse args (support top-level and nested args, and JSON-string arguments)
+	var (
+		urlStr  string
+		timeout float64 = 10.0
+	)
+
+	// try direct first
+	if u, err := req.RequireString("url"); err == nil && strings.TrimSpace(u) != "" {
+		urlStr = strings.TrimSpace(u)
 	}
 
-	// 解析timeout参数，默认为10秒
-	args := helper.GetArgs(req)
-	timeout := helper.GetFloatDefault(args, "timeout", 10.0)
-
-	// 验证URL
-	parsedURL, err := url.Parse(urlStr)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("invalid URL: %v", err)), nil
+	// extract argument map
+	var argTop map[string]any = helper.GetArgs(req)
+	if share.GetDebug() {
+		helper.PrintWithLabel("web_fetch", argTop)
+	}
+	// if Arguments is a JSON string, try unmarshal
+	if argTop == nil {
+		switch raw := req.Params.Arguments.(type) {
+		case string:
+			var tmp map[string]any
+			if json.Unmarshal([]byte(raw), &tmp) == nil {
+				argTop = tmp
+			}
+		}
+	}
+	// flatten nested { args: { ... } }
+	argUse := argTop
+	if argTop != nil {
+		if nested, ok := argTop["args"].(map[string]any); ok && nested != nil {
+			argUse = nested
+		}
 	}
 
-	// 确保URL包含协议
-	if parsedURL.Scheme == "" {
+	if urlStr == "" && argUse != nil {
+		if u, ok := argUse["url"].(string); ok {
+			urlStr = strings.TrimSpace(u)
+		}
+	}
+	// timeout from args (string/number tolerant)
+	if argUse != nil {
+		timeout = helper.GetFloatDefault(argUse, "timeout", timeout)
+	}
+	if urlStr == "" {
+		return mcp.NewToolResultError("missing or invalid url parameter: expected {\"url\": \"https://...\"} or {\"args\": {\"url\": \"...\"}}"), nil
+	}
+
+	// normalize URL
+	if parsed, perr := url.Parse(urlStr); perr == nil && parsed.Scheme == "" {
 		urlStr = "https://" + urlStr
 	}
 
-	// 创建具有超时的HTTP客户端
-	client := &http.Client{
-		Timeout: time.Duration(timeout) * time.Second,
+	if share.GetDebug() {
+		helper.PrintWithLabel("urlStr", urlStr)
 	}
 
-	// 发送GET请求
-	httpReq, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	client := &http.Client{Timeout: time.Duration(timeout) * time.Second}
+	reqHTTP, err := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("failed to create request: %v", err)), nil
 	}
+	// realistic headers
+	reqHTTP.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36")
+	reqHTTP.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	reqHTTP.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+	// 注意：不主动声明 br，避免 Brotli 需要额外处理
+	reqHTTP.Header.Set("Accept-Encoding", "gzip, deflate")
 
-	// 设置用户代理
-	httpReq.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36")
-
-	// 执行请求
-	resp, err := client.Do(httpReq)
+	resp, err := client.Do(reqHTTP)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("request failed: %v", err)), nil
 	}
 	defer resp.Body.Close()
-
-	// 检查状态码
-	if resp.StatusCode != http.StatusOK {
-		return mcp.NewToolResultError(fmt.Sprintf("HTTP request failed with status code: %d", resp.StatusCode)), nil
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return mcp.NewToolResultError(fmt.Sprintf("HTTP status %d", resp.StatusCode)), nil
 	}
 
-	// 读取响应内容
-	body, err := io.ReadAll(resp.Body)
+	// handle content-encoding (gzip/deflate) before charset conversion
+	var decoded io.ReadCloser
+	var baseReader io.Reader = resp.Body
+	encHeader := strings.ToLower(resp.Header.Get("Content-Encoding"))
+	// Some servers may return multiple encodings separated by commas
+	if encHeader != "" {
+		if strings.Contains(encHeader, "gzip") {
+			gz, gerr := gzip.NewReader(resp.Body)
+			if gerr == nil {
+				decoded = gz
+				baseReader = decoded
+			} else if share.GetDebug() {
+				helper.PrintWithLabel("web_fetch_gzip_error", gerr.Error())
+			}
+		} else if strings.Contains(encHeader, "deflate") {
+			// Try zlib-wrapped deflate first
+			zr, zerr := zlib.NewReader(resp.Body)
+			if zerr == nil {
+				decoded = zr
+				baseReader = decoded
+			} else {
+				// Fallback to raw deflate
+				fr := flate.NewReader(resp.Body)
+				decoded = io.NopCloser(fr)
+				baseReader = decoded
+				if share.GetDebug() {
+					helper.PrintWithLabel("web_fetch_deflate_fallback", "used raw flate reader")
+				}
+			}
+		}
+	}
+	// ensure we close the decoded reader if created
+	if decoded != nil {
+		defer decoded.Close()
+	}
+
+	// auto-decode to UTF-8 after decompression
+	utf8Reader, err := charset.NewReader(baseReader, resp.Header.Get("Content-Type"))
+	if err != nil {
+		// 回退到原始 body
+		utf8Reader = baseReader
+	}
+	raw, err := io.ReadAll(utf8Reader)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("failed to read response body: %v", err)), nil
 	}
+	html := string(raw)
 
-	// 构建结果
-	result := map[string]interface{}{
-		"url":         urlStr,
-		"status_code": resp.StatusCode,
-		"content":     string(body),
-		"headers":     resp.Header,
+	// parse with goquery
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to parse HTML: %v", err)), nil
 	}
 
-	return mcp.NewToolResultText(helper.ToJSONString(result)), nil
+	title := strings.TrimSpace(doc.Find("title").First().Text())
+
+	// try choose main content container heuristically
+	sel := doc.Find("article, main, #content, .content, .article, .post, .entry, .post-content, .article-content").First()
+	if sel.Length() == 0 {
+		// fallback to body
+		sel = doc.Find("body")
+	}
+
+	// remove noise
+	sel.Find("script, style, noscript, iframe, header, footer, nav, aside").Remove()
+	sel.Find("[role='navigation'], .ads, .advert, .sidebar, .toolbar").Remove()
+
+	// convert HTML subtree to markdown (lightweight)
+	md := htmlNodesToMarkdown(sel)
+
+	if share.GetDebug() {
+		helper.PrintWithLabel("markdown", md)
+	}
+
+	// shorten overly long output
+	const maxLen = 12000
+	if len(md) > maxLen {
+		md = md[:maxLen] + "\n\n...[truncated]"
+	}
+
+	out := map[string]interface{}{
+		"url":         urlStr,
+		"status_code": resp.StatusCode,
+		"title":       title,
+		"markdown":    strings.TrimSpace(md),
+		"headers": map[string]string{
+			"content-type":   resp.Header.Get("Content-Type"),
+			"content-length": resp.Header.Get("Content-Length"),
+		},
+	}
+	return mcp.NewToolResultText(helper.ToJSONString(out)), nil
+}
+
+// htmlNodesToMarkdown performs a minimal HTML -> Markdown conversion for a goquery.Selection
+func htmlNodesToMarkdown(sel *goquery.Selection) string {
+	var b strings.Builder
+	sel.Each(func(_ int, s *goquery.Selection) {
+		traverseNode(&b, s)
+	})
+	// collapse excessive blank lines
+	txt := b.String()
+	txt = regexp.MustCompile("\n{3,}").ReplaceAllString(txt, "\n\n")
+	return strings.TrimSpace(txt)
+}
+
+// traverseNode writes markdown for the selection recursively
+func traverseNode(b *strings.Builder, s *goquery.Selection) {
+	nodeName := goquery.NodeName(s)
+
+	switch nodeName {
+	case "h1", "h2", "h3", "h4", "h5", "h6":
+		level := nodeName[1:] // "1".."6"
+		b.WriteString(strings.Repeat("#", int(level[0]-'0')))
+		b.WriteString(" ")
+		b.WriteString(strings.TrimSpace(s.Text()))
+		b.WriteString("\n\n")
+		return
+	case "p":
+		text := strings.TrimSpace(s.Text())
+		if text != "" {
+			b.WriteString(text)
+			b.WriteString("\n\n")
+		}
+		return
+	case "ul":
+		s.Children().Each(func(_ int, li *goquery.Selection) {
+			if goquery.NodeName(li) == "li" {
+				t := strings.TrimSpace(li.Text())
+				if t != "" {
+					b.WriteString("- " + t + "\n")
+				}
+			}
+		})
+		b.WriteString("\n")
+		return
+	case "ol":
+		i := 1
+		s.Children().Each(func(_ int, li *goquery.Selection) {
+			if goquery.NodeName(li) == "li" {
+				t := strings.TrimSpace(li.Text())
+				if t != "" {
+					b.WriteString(fmt.Sprintf("%d. %s\n", i, t))
+					i++
+				}
+			}
+		})
+		b.WriteString("\n")
+		return
+	case "pre", "code":
+		text := strings.TrimSpace(s.Text())
+		if text != "" {
+			if nodeName == "pre" {
+				b.WriteString("```\n")
+				b.WriteString(text)
+				b.WriteString("\n```\n\n")
+			} else {
+				b.WriteString("`" + text + "`")
+			}
+		}
+		return
+	case "img":
+		alt, _ := s.Attr("alt")
+		src, _ := s.Attr("src")
+		if src != "" {
+			b.WriteString(fmt.Sprintf("![%s](%s)\n\n", strings.TrimSpace(alt), src))
+		}
+		return
+	case "a":
+		href, _ := s.Attr("href")
+		text := strings.TrimSpace(s.Text())
+		if href != "" && text != "" {
+			b.WriteString(fmt.Sprintf("[%s](%s)", text, href))
+		} else if text != "" {
+			b.WriteString(text)
+		}
+		return
+	}
+
+	// default: process children
+	s.Contents().Each(func(_ int, c *goquery.Selection) {
+		if goquery.NodeName(c) == "#text" {
+			t := strings.TrimSpace(c.Text())
+			if t != "" {
+				b.WriteString(t + " ")
+			}
+			return
+		}
+		traverseNode(b, c)
+	})
 }
 
 // webSearch 通过搜索引擎获取信息
@@ -308,10 +518,8 @@ func parseBaiduSearchResults(data []byte, limit int) ([]SearchResult, error) {
 		title := match[2]
 
 		// 对于百度搜索结果，URL可能需要进一步处理
-		if strings.HasPrefix(url, "http://www.baidu.com/link?url=") {
-			// 实际情况中可能需要进一步跟踪获取真实URL
-			url = strings.TrimPrefix(url, "http://www.baidu.com/link?url=")
-		}
+		// 实际情况中可能需要进一步跟踪获取真实URL
+		url = strings.TrimPrefix(url, "http://www.baidu.com/link?url=")
 
 		// 提取摘要
 		snippet := ""
