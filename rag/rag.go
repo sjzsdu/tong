@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/sjzsdu/tong/config"
+	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/lang"
 	"github.com/sjzsdu/tong/share"
 	"github.com/tmc/langchaingo/embeddings"
@@ -84,10 +85,15 @@ func Run(ctx context.Context, cfg *config.SchemaConfig, options RAGOptions) erro
 
 	// 如果需要重新索引，询问用户
 	if !shouldReindex {
-		fmt.Print(lang.T("文档已经索引，是否需要重新索引? (y/n): "))
-		var answer string
-		fmt.Scanln(&answer)
-		shouldReindex = answer == "y" || answer == "Y"
+		reindex, err := helper.PromptYesNo(lang.T("文档已经索引，是否需要重新索引? (y/n): "), false)
+		if err != nil {
+			return &RagError{
+				Code:    "user_input_failed",
+				Message: "读取用户输入失败",
+				Cause:   err,
+			}
+		}
+		shouldReindex = reindex
 	}
 
 	// 执行索引过程

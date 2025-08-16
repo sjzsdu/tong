@@ -19,6 +19,7 @@ const (
 	KeyGoogleAPIKey         = "google_api_key"
 	KeyGoogleSearchEngineID = "google_search_engine_id"
 	KeyBingAPIKey           = "bing_api_key"
+	KeyBaiduAPIKey          = "baidu_api_key"
 )
 
 // ConfigKeys 存储所有配置键及其信息
@@ -70,6 +71,11 @@ var ConfigKeys = map[string]ConfigKeyInfo{
 	},
 	KeyBingAPIKey: {
 		Description: "Set Bing API key for web search",
+		Options:     []string{},
+		Type:        "secret",
+	},
+	KeyBaiduAPIKey: {
+		Description: "Set Baidu API key for web search",
 		Options:     []string{},
 		Type:        "secret",
 	},

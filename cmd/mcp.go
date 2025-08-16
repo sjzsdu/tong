@@ -32,7 +32,6 @@ var mcpCmd = &cobra.Command{
 var (
 	mcpTransport string
 	mcpPortFlag  string
-	mcpDebug     bool
 )
 
 func init() {
@@ -41,7 +40,6 @@ func init() {
 	// 添加命令行标志
 	mcpCmd.Flags().StringVar(&mcpTransport, "transport", "", "传输方式 (stdio, http, sse)，默认为 stdio")
 	mcpCmd.Flags().StringVar(&mcpPortFlag, "port", "8080", "HTTP/SSE 服务器端口，默认为 8080")
-	mcpCmd.Flags().BoolVar(&mcpDebug, "debug", false, "启用调试日志")
 }
 
 func runMCP(cmd *cobra.Command, args []string) {
@@ -170,13 +168,15 @@ func testToolCall(toolName string) {
 `, targetTool.Name(), targetTool.Description(), paramInfo)
 
 	// 询问用户是否要自行输入参数
-	fmt.Println("\n是否要自行输入参数? (y/n)")
-	var userChoice string
-	fmt.Scanln(&userChoice)
+	userWantsInput, err := helper.PromptYesNo("\n是否要自行输入参数? (y/n) ", false)
+	if err != nil {
+		fmt.Printf("读取用户输入时出错: %v\n", err)
+		return
+	}
 
 	var generatedParams string
 
-	if strings.ToLower(userChoice) == "y" {
+	if userWantsInput {
 		// 用户自行输入参数
 		fmt.Println("请输入JSON格式的参数:")
 		reader := bufio.NewReader(os.Stdin)
@@ -254,11 +254,6 @@ func runMCPServer() {
 	port := mcpPortFlag
 	if envPort := os.Getenv("MCP_PORT"); envPort != "" {
 		port = envPort
-	}
-
-	// 如果启用了调试模式
-	if mcpDebug {
-		fmt.Printf("调试模式已启用\n")
 	}
 
 	fmt.Printf("启动 Tong MCP 服务器...\n")
