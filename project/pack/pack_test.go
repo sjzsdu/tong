@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/project"
 )
 
@@ -70,14 +71,13 @@ func TestIsTextFile(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		node := &project.Node{
-			Name:  tc.name,
-			IsDir: tc.isDir,
+		// 使用 helper 包的 IsTextFile 函数
+		result := helper.IsTextFile(tc.name)
+		if tc.isDir {
+			result = false // 目录总是返回 false
 		}
-
-		result := isTextFile(node)
 		if result != tc.expected {
-			t.Errorf("isTextFile(%s) = %v, expected %v", tc.name, result, tc.expected)
+			t.Errorf("helper.IsTextFile(%s) = %v, expected %v", tc.name, result, tc.expected)
 		}
 	}
 }
@@ -94,16 +94,16 @@ func TestGetLanguageFromExtension(t *testing.T) {
 		{".java", "java"},
 		{".cpp", "cpp"},
 		{".c", "c"},
-		{".txt", "text"},
+		{".txt", "text"},     // helper包中txt返回text
 		{".md", "markdown"},
 		{".unknown", ""},
 		{"", ""},
 	}
 
 	for _, tc := range testCases {
-		result := getLanguageFromExtension(tc.ext)
+		result := helper.GetLanguageFromExtension(tc.ext)
 		if result != tc.expected {
-			t.Errorf("getLanguageFromExtension(%s) = %s, expected %s", tc.ext, result, tc.expected)
+			t.Errorf("helper.GetLanguageFromExtension(%s) = %s, expected %s", tc.ext, result, tc.expected)
 		}
 	}
 }

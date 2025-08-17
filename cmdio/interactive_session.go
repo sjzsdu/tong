@@ -8,6 +8,7 @@ import (
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/helper/renders"
 	"github.com/sjzsdu/tong/lang"
+	"github.com/sjzsdu/tong/project"
 	"github.com/sjzsdu/tong/share"
 )
 
@@ -50,7 +51,7 @@ func NewInteractiveSession(processor InteractiveProcessor, opts ...SessionOption
 }
 
 // Start 启动交互式会话
-func (s *InteractiveSession) Start(ctx context.Context) error {
+func (s *InteractiveSession) Start(ctx context.Context, pjt *project.Project) error {
 	if ctx == nil {
 		return fmt.Errorf("context cannot be nil")
 	}
@@ -92,6 +93,9 @@ func (s *InteractiveSession) Start(ctx context.Context) error {
 
 		loadingDone := make(chan bool, 1)
 		go s.showLoadingAnimationFunc(loadingDone)
+		if pjt != nil {
+			input, _ = pjt.HandleContext(input)
+		}
 
 		err = s.Processor.ProcessInput(ctx, input, s.stream, s.renderer, loadingDone)
 		if err != nil {

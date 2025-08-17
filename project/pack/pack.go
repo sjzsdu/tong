@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/project"
 )
 
@@ -202,4 +203,23 @@ func collectTextFiles(node *project.Node, currentPath string, options *PackOptio
 	}
 
 	return allFiles
+}
+
+// shouldIncludeFile 判断文件是否应该被包含在打包中
+func shouldIncludeFile(node *project.Node, options *PackOptions) bool {
+	if node.IsDir {
+		return false
+	}
+
+	// 判断是否为隐藏文件
+	isHidden := strings.HasPrefix(node.Name, ".")
+
+	// 创建文件过滤选项
+	filterOptions := &helper.FileFilterOptions{
+		IncludeHidden: options.IncludeHidden,
+		IncludeExts:   options.IncludeExts,
+		ExcludeExts:   options.ExcludeExts,
+	}
+
+	return helper.ShouldIncludeFile(node.Name, isHidden, filterOptions)
 }

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/project"
 )
 
@@ -22,7 +23,7 @@ type MarkdownFormatter struct{}
 // Format 格式化单个文件内容为Markdown格式
 func (m *MarkdownFormatter) Format(node *project.Node, content string, relativePath string) string {
 	var builder strings.Builder
-	
+
 	// 添加文件头部信息
 	builder.WriteString(fmt.Sprintf("## 📄 %s\n\n", relativePath))
 	builder.WriteString(fmt.Sprintf("**路径:** `%s`  \n", relativePath))
@@ -30,17 +31,17 @@ func (m *MarkdownFormatter) Format(node *project.Node, content string, relativeP
 		builder.WriteString(fmt.Sprintf("**大小:** %d bytes  \n", node.Info.Size()))
 	}
 	builder.WriteString("\n")
-	
+
 	// 添加代码块
 	fileExt := filepath.Ext(relativePath)
-	lang := getLanguageFromExtension(fileExt)
+	lang := helper.GetLanguageFromExtension(fileExt)
 	builder.WriteString(fmt.Sprintf("```%s\n", lang))
 	builder.WriteString(content)
 	if !strings.HasSuffix(content, "\n") {
 		builder.WriteString("\n")
 	}
 	builder.WriteString("```\n\n")
-	
+
 	return builder.String()
 }
 

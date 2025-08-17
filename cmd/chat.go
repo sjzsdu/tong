@@ -20,6 +20,7 @@ var chatCmd = &cobra.Command{
 }
 
 func init() {
+	initProjectArgs(chatCmd)
 	// 添加streamMode标志
 	chatCmd.Flags().BoolVarP(&streamMode, "stream", "s", true, lang.T("启用流式输出模式"))
 	rootCmd.AddCommand(chatCmd)
@@ -39,6 +40,12 @@ func runChat(cmd *cobra.Command, args []string) {
 		log.Fatal(err)
 	}
 
+	// 获取项目
+	project, err := GetProject()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// Create conversation memory
 	chatMemory := memory.NewConversationBuffer()
 
@@ -50,7 +57,7 @@ func runChat(cmd *cobra.Command, args []string) {
 
 	// 启动交互式会话
 	ctx := context.Background()
-	err = session.Start(ctx)
+	err = session.Start(ctx, project)
 	if err != nil {
 		log.Fatalf("会话错误: %v", err)
 	}

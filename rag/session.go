@@ -36,7 +36,7 @@ func (s *Session) Start(ctx context.Context) error {
 	adapter := cmdio.CreateChatAdapter(s.Chain, s.Options.Stream)
 
 	// 启动交互式会话
-	return adapter.Start(ctx)
+	return adapter.Start(ctx, nil)
 }
 
 // Query 执行单次查询
