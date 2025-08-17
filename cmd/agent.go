@@ -10,11 +10,11 @@ import (
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/lang"
 	"github.com/sjzsdu/tong/mcp"
+	"github.com/sjzsdu/tong/prompt"
 	"github.com/sjzsdu/tong/share"
 	"github.com/spf13/cobra"
 	"github.com/tmc/langchaingo/agents"
-	"github.com/tmc/langchaingo/callbacks"
-	llmPkg "github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/memory"
 	"github.com/tmc/langchaingo/tools"
 )
 
@@ -73,39 +73,40 @@ func runAgent(cmd *cobra.Command, args []string) {
 		schemeTools = []tools.Tool{}
 	}
 
+	systemPrompt := prompt.ShowPromptContent(promptName)
+
 	// 打印可用工具列表
-	if share.GetDebug() && len(schemeTools) > 0 {
-		fmt.Println(lang.T("可用工具列表:"))
-		for _, tool := range schemeTools {
-			fmt.Printf("- %s: %s\n", tool.Name(), tool.Description())
-		}
-		fmt.Println()
+	if share.GetDebug() {
+		helper.PrintWithLabel("可用工具:", schemeTools)
+		helper.PrintWithLabel("提示词:", systemPrompt)
 	}
+
+	chatMemory := memory.NewConversationBuffer()
+	openAIOption := agents.NewOpenAIOption()
+	var session *cmdio.InteractiveSession
 
 	switch agentType {
 	case "conversation":
-		// 创建交互式会话适配器
-		session := cmdio.CreateAgentAdapter(llm, promptName, schemeTools, streamMode, nil)
-
-		// 启动交互式会话
-		err = session.Start(ctx)
-		if err != nil {
-			log.Fatalf("会话错误: %v", err)
-		}
-	case "oneShotZero":
-		// 创建交互式会话适配器
-		session := cmdio.CreateAgentAdapter(llm, promptName, schemeTools, streamMode, func(llm llmPkg.Model, tools []tools.Tool, handler callbacks.Handler, systemPrompt string) agents.Agent {
-			openAIOption := agents.NewOpenAIOption()
-			return agents.NewOneShotAgent(llm, tools,
-				agents.WithCallbacksHandler(handler),
+		session = cmdio.CreateAgentAdapter(streamMode, func(processor *cmdio.AgentProcessor) *agents.Executor {
+			agent := agents.NewConversationalAgent(llm, schemeTools,
+				agents.WithCallbacksHandler(processor.Handler),
 				openAIOption.WithSystemMessage(systemPrompt))
-		})
 
-		// 启动交互式会话
-		err = session.Start(ctx)
-		if err != nil {
-			log.Fatalf("会话错误: %v", err)
-		}
+			return agents.NewExecutor(agent, agents.WithMemory(chatMemory))
+		})
+	case "oneShotZero":
+		session = cmdio.CreateAgentAdapter(streamMode, func(processor *cmdio.AgentProcessor) *agents.Executor {
+			agent := agents.NewOneShotAgent(llm, schemeTools,
+				agents.WithCallbacksHandler(processor.Handler),
+				openAIOption.WithSystemMessage(systemPrompt))
+
+			return agents.NewExecutor(agent, agents.WithMemory(chatMemory))
+		})
 	}
 
+	// 启动交互式会话
+	err = session.Start(ctx)
+	if err != nil {
+		log.Fatalf("会话错误: %v", err)
+	}
 }

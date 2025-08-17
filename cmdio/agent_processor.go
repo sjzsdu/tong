@@ -6,13 +6,9 @@ import (
 
 	"github.com/sjzsdu/tong/helper/renders"
 	"github.com/sjzsdu/tong/lang"
-	"github.com/sjzsdu/tong/prompt"
 	"github.com/tmc/langchaingo/agents"
 	"github.com/tmc/langchaingo/callbacks"
 	"github.com/tmc/langchaingo/chains"
-	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/memory"
-	"github.com/tmc/langchaingo/tools"
 )
 
 // AgentProcessor 是一个适配 langchaingo agent 的处理器
@@ -110,33 +106,16 @@ func (p *AgentProcessor) ProcessStreaming(content string, done bool) error {
 	return nil
 }
 
-// AgentCreator 是一个创建agent的函数类型
-type AgentCreator func(llm llms.Model, tools []tools.Tool, handler callbacks.Handler, systemPrompt string) agents.Agent
+// AgentCreator 是一个创建agent executor的函数类型
+type AgentCreator func(processor *AgentProcessor) *agents.Executor
 
 // CreateAgentAdapter 创建一个适配 langchaingo agent 的交互式会话
-func CreateAgentAdapter(llm llms.Model, promptName string, schemeTools []tools.Tool, streamMode bool, createAgentFunc AgentCreator) *InteractiveSession {
+func CreateAgentAdapter(streamMode bool, createAgentFunc AgentCreator) *InteractiveSession {
 
 	processor := NewAgentProcessor(streamMode)
 
-	// 创建会话代理
-	chatMemory := memory.NewConversationBuffer()
-	// 设置系统提示
-	systemPrompt := prompt.ShowPromptContent(promptName)
-
-	// 使用提供的函数创建agent
-	var agent agents.Agent
-	if createAgentFunc != nil {
-		agent = createAgentFunc(llm, schemeTools, processor.Handler, systemPrompt)
-	} else {
-		// 默认创建方式，使用自定义的回调处理器
-		openAIOption := agents.NewOpenAIOption()
-		agent = agents.NewConversationalAgent(llm, schemeTools,
-			agents.WithCallbacksHandler(processor.Handler),
-			openAIOption.WithSystemMessage(systemPrompt))
-	}
-
-	// 设置执行器
-	executor := agents.NewExecutor(agent, agents.WithMemory(chatMemory))
+	// 使用提供的函数创建executor
+	executor := createAgentFunc(processor)
 
 	// 创建处理器
 	processor.SetExecutor(executor)
