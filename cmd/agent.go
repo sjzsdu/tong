@@ -12,6 +12,9 @@ import (
 	"github.com/sjzsdu/tong/mcp"
 	"github.com/sjzsdu/tong/share"
 	"github.com/spf13/cobra"
+	"github.com/tmc/langchaingo/agents"
+	"github.com/tmc/langchaingo/callbacks"
+	llmPkg "github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/tools"
 )
 
@@ -62,34 +65,47 @@ func runAgent(cmd *cobra.Command, args []string) {
 		host = &mcp.Host{Clients: make(map[string]*mcp.Client)}
 	}
 
+	ctx := context.Background()
+	// 创建基于 SchemeConfig 的工具
+	schemeTools, err := host.GetTools(ctx)
+	if err != nil {
+		fmt.Printf("警告: 获取 MCP 工具失败: %v\n将继续执行但功能可能受限\n", err)
+		schemeTools = []tools.Tool{}
+	}
+
+	// 打印可用工具列表
+	if share.GetDebug() && len(schemeTools) > 0 {
+		fmt.Println(lang.T("可用工具列表:"))
+		for _, tool := range schemeTools {
+			fmt.Printf("- %s: %s\n", tool.Name(), tool.Description())
+		}
+		fmt.Println()
+	}
+
 	switch agentType {
 	case "conversation":
-		ctx := context.Background()
-		// 创建基于 SchemeConfig 的工具
-		var schemeTools []tools.Tool
-		schemeTools, err := host.GetTools(ctx)
-		if err != nil {
-			fmt.Printf("警告: 获取 MCP 工具失败: %v\n将继续执行但功能可能受限\n", err)
-			schemeTools = []tools.Tool{}
-		}
-
-		// 打印可用工具列表
-		if share.GetDebug() && len(schemeTools) > 0 {
-			fmt.Println(lang.T("可用工具列表:"))
-			for _, tool := range schemeTools {
-				fmt.Printf("- %s: %s\n", tool.Name(), tool.Description())
-			}
-			fmt.Println()
-		}
-
 		// 创建交互式会话适配器
-		session := cmdio.CreateAgentAdapter(llm, promptName, schemeTools, streamMode)
+		session := cmdio.CreateAgentAdapter(llm, promptName, schemeTools, streamMode, nil)
 
 		// 启动交互式会话
 		err = session.Start(ctx)
 		if err != nil {
 			log.Fatalf("会话错误: %v", err)
 		}
-		return
+	case "oneShotZero":
+		// 创建交互式会话适配器
+		session := cmdio.CreateAgentAdapter(llm, promptName, schemeTools, streamMode, func(llm llmPkg.Model, tools []tools.Tool, handler callbacks.Handler, systemPrompt string) agents.Agent {
+			openAIOption := agents.NewOpenAIOption()
+			return agents.NewOneShotAgent(llm, tools,
+				agents.WithCallbacksHandler(handler),
+				openAIOption.WithSystemMessage(systemPrompt))
+		})
+
+		// 启动交互式会话
+		err = session.Start(ctx)
+		if err != nil {
+			log.Fatalf("会话错误: %v", err)
+		}
 	}
+
 }

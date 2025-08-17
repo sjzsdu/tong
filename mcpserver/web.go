@@ -160,7 +160,7 @@ func webSearch(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResul
 
 	// 使用辅助函数获取limit参数，默认为5
 	limit, _ := helper.GetIntFromRequest(req, "limit", 5)
-	
+
 	// 使用辅助函数获取engine参数
 	userEngine, _ := helper.GetStringFromRequest(req, "engine", "")
 

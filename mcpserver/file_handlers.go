@@ -46,7 +46,7 @@ func fsList(ctx context.Context, proj *project.Project, req mcp.CallToolRequest)
 	if !found {
 		return mcp.NewToolResultError("missing or invalid dir parameter: required argument \"dir\" not found"), nil
 	}
-	
+
 	maxDepth, _ := helper.GetIntFromRequest(req, "maxDepth", 1)
 	includeFiles, _ := helper.GetBoolFromRequest(req, "includeFiles", true)
 	includeDirs, _ := helper.GetBoolFromRequest(req, "includeDirs", false)

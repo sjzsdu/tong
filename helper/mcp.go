@@ -87,7 +87,7 @@ func GetIntFromRequest(req mcp.CallToolRequest, key string, def int) (int, bool)
 			return iv, true
 		}
 	}
-	
+
 	// 如果顶层没有，尝试从args中获取
 	args := GetArgs(req)
 	if args != nil {
@@ -110,7 +110,7 @@ func GetIntFromRequest(req mcp.CallToolRequest, key string, def int) (int, bool)
 				}
 			}
 		}
-		
+
 		// 检查是否有嵌套的args结构
 		if nestedArgs, ok := args["args"].(map[string]interface{}); ok && nestedArgs != nil {
 			if val, ok := nestedArgs[key]; ok {
@@ -133,7 +133,7 @@ func GetIntFromRequest(req mcp.CallToolRequest, key string, def int) (int, bool)
 			}
 		}
 	}
-	
+
 	return def, false
 }
 
@@ -147,7 +147,7 @@ func GetBoolFromRequest(req mcp.CallToolRequest, key string, def bool) (bool, bo
 			return false, true
 		}
 	}
-	
+
 	// 如果顶层没有，尝试从args中获取
 	args := GetArgs(req)
 	if args != nil {
@@ -168,7 +168,7 @@ func GetBoolFromRequest(req mcp.CallToolRequest, key string, def bool) (bool, bo
 				return v != 0, true
 			}
 		}
-		
+
 		// 检查是否有嵌套的args结构
 		if nestedArgs, ok := args["args"].(map[string]interface{}); ok && nestedArgs != nil {
 			if val, ok := nestedArgs[key]; ok {
@@ -189,7 +189,7 @@ func GetBoolFromRequest(req mcp.CallToolRequest, key string, def bool) (bool, bo
 			}
 		}
 	}
-	
+
 	return def, false
 }
 
@@ -201,7 +201,7 @@ func GetFloatFromRequest(req mcp.CallToolRequest, key string, def float64) (floa
 			return fv, true
 		}
 	}
-	
+
 	// 如果顶层没有，尝试从args中获取
 	args := GetArgs(req)
 	if args != nil {
@@ -224,7 +224,7 @@ func GetFloatFromRequest(req mcp.CallToolRequest, key string, def float64) (floa
 				}
 			}
 		}
-		
+
 		// 检查是否有嵌套的args结构
 		if nestedArgs, ok := args["args"].(map[string]interface{}); ok && nestedArgs != nil {
 			if val, ok := nestedArgs[key]; ok {
@@ -247,7 +247,7 @@ func GetFloatFromRequest(req mcp.CallToolRequest, key string, def float64) (floa
 			}
 		}
 	}
-	
+
 	return def, false
 }
 
