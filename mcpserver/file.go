@@ -20,7 +20,7 @@ func RegisterFileTools(s *server.MCPServer, proj *project.Project) {
 	toolList := mcp.NewTool(
 		"fs_list",
 		mcp.WithDescription("列出目录内容，支持最大深度、是否包含文件/目录、是否包含隐藏项"),
-		mcp.WithString("dir", mcp.Required(), mcp.Description("目录路径，如 / 或 /src")),
+		mcp.WithString("path", mcp.Required(), mcp.Description("目录路径，如 / 或 /src")),
 		mcp.WithNumber("maxDepth", mcp.Description("最大深度（0 表示不限制；1 表示仅当前目录）")),
 		mcp.WithBoolean("includeFiles", mcp.Description("结果是否包含文件，默认 true")),
 		mcp.WithBoolean("includeDirs", mcp.Description("结果是否包含目录，默认 false")),

@@ -164,7 +164,7 @@ func TestFSListTreeSearchStatHash(t *testing.T) {
 
 	// list
 	hList := getToolHandler(t, s, "fs_list")
-	res, err := hList(ctx, pkgmcp.NewToolCallRequest("fs_list", map[string]interface{}{"dir": "/b", "maxDepth": 1, "includeFiles": true, "includeDirs": false}))
+	res, err := hList(ctx, pkgmcp.NewToolCallRequest("fs_list", map[string]interface{}{"path": "/b", "maxDepth": 1, "includeFiles": true, "includeDirs": false}))
 	if err != nil {
 		t.Fatalf("list err: %v", err)
 	}

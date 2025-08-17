@@ -14,6 +14,9 @@ import (
 	prjtree "github.com/sjzsdu/tong/project/tree"
 )
 
+// 时间格式常量，用于时间格式化
+const timeLayout = "2006-01-02 15:04:05"
+
 // ensureParentDirs 确保文件路径的父目录在项目与磁盘中就绪（逐级创建缺失目录）
 func ensureParentDirs(proj *project.Project, path string) error {
 	p := proj.NormalizePath(path)
@@ -42,15 +45,15 @@ func ensureParentDirs(proj *project.Project, path string) error {
 }
 
 func fsList(ctx context.Context, proj *project.Project, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	dir, found := helper.GetStringFromRequest(req, "dir", "")
-	if !found {
-		return mcp.NewToolResultError("missing or invalid dir parameter: required argument \"dir\" not found"), nil
+	dir, err := req.RequireString("path")
+	if err != nil {
+		return mcp.NewToolResultError("missing or invalid path parameter: required argument \"path\" not found"), nil
 	}
 
-	maxDepth, _ := helper.GetIntFromRequest(req, "maxDepth", 1)
-	includeFiles, _ := helper.GetBoolFromRequest(req, "includeFiles", true)
-	includeDirs, _ := helper.GetBoolFromRequest(req, "includeDirs", false)
-	includeHidden, _ := helper.GetBoolFromRequest(req, "includeHidden", false)
+	maxDepth := req.GetInt("maxDepth", 1)
+	includeFiles := req.GetBool("includeFiles", true)
+	includeDirs := req.GetBool("includeDirs", false)
+	includeHidden := req.GetBool("includeHidden", false)
 
 	dir = proj.NormalizePath(dir)
 	n, err := proj.FindNode(dir)
@@ -85,7 +88,7 @@ func fsList(ctx context.Context, proj *project.Project, req mcp.CallToolRequest)
 		it := itemT{Name: m.Name, Path: m.Path, IsDir: m.IsDir}
 		if m.Info != nil {
 			it.Size = m.Info.Size()
-			it.ModTime = m.Info.ModTime().Format(helper.TimeLayout)
+			it.ModTime = m.Info.ModTime().Format(timeLayout)
 		}
 		items = append(items, it)
 	}
@@ -93,8 +96,8 @@ func fsList(ctx context.Context, proj *project.Project, req mcp.CallToolRequest)
 }
 
 func fsRead(ctx context.Context, proj *project.Project, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	p, found := helper.GetStringFromRequest(req, "path", "")
-	if !found {
+	p, err := req.RequireString("path")
+	if err != nil {
 		return mcp.NewToolResultError("missing or invalid path parameter: required argument \"path\" not found"), nil
 	}
 	p = proj.NormalizePath(p)
@@ -148,8 +151,7 @@ func fsCreateFile(ctx context.Context, proj *project.Project, req mcp.CallToolRe
 	if err := ensureParentDirs(proj, p); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	args := helper.GetArgs(req)
-	content := helper.GetStringDefault(args, "content", "")
+	content := req.GetString("content", "")
 	var werr error
 	if content == "" {
 		werr = proj.CreateFileNode(p)
@@ -207,10 +209,9 @@ func fsTree(ctx context.Context, proj *project.Project, req mcp.CallToolRequest)
 	if !n.IsDir {
 		return mcp.NewToolResultError("fs_tree 仅支持目录"), nil
 	}
-	args := helper.GetArgs(req)
-	showFiles := helper.GetBoolDefault(args, "showFiles", true)
-	showHidden := helper.GetBoolDefault(args, "showHidden", false)
-	maxDepth := helper.GetIntDefault(args, "maxDepth", 0)
+	showFiles := req.GetBool("showFiles", true)
+	showHidden := req.GetBool("showHidden", false)
+	maxDepth := req.GetInt("maxDepth", 0)
 	txt := prjtree.TreeWithOptions(n, showFiles, showHidden, maxDepth)
 	return mcp.NewToolResultText(txt), nil
 }
@@ -225,13 +226,13 @@ func fsSearch(ctx context.Context, proj *project.Project, req mcp.CallToolReques
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("路径不存在: %s", p)), nil
 	}
-	args := helper.GetArgs(req)
+
 	opts := prjsearch.DefaultSearchOptions()
-	opts.NameContains = helper.GetStringDefault(args, "nameContains", "")
-	opts.NameRegex = helper.GetStringDefault(args, "nameRegex", "")
-	opts.ContentContains = helper.GetStringDefault(args, "contentContains", "")
-	opts.ContentRegex = helper.GetStringDefault(args, "contentRegex", "")
-	extStr := helper.GetStringDefault(args, "extensions", "")
+	opts.NameContains = req.GetString("nameContains", "")
+	opts.NameRegex = req.GetString("nameRegex", "")
+	opts.ContentContains = req.GetString("contentContains", "")
+	opts.ContentRegex = req.GetString("contentRegex", "")
+	extStr := req.GetString("extensions", "")
 	if strings.TrimSpace(extStr) != "" {
 		parts := strings.Split(extStr, ",")
 		for i := range parts {
@@ -239,12 +240,12 @@ func fsSearch(ctx context.Context, proj *project.Project, req mcp.CallToolReques
 		}
 		opts.Extensions = parts
 	}
-	opts.IncludeHidden = helper.GetBoolDefault(args, "includeHidden", false)
-	opts.IncludeDirs = helper.GetBoolDefault(args, "includeDirs", false)
-	opts.IncludeFiles = helper.GetBoolDefault(args, "includeFiles", true)
-	opts.CaseInsensitive = helper.GetBoolDefault(args, "caseInsensitive", true)
-	opts.MatchAny = helper.GetBoolDefault(args, "matchAny", false)
-	opts.MaxDepth = helper.GetIntDefault(args, "maxDepth", 0)
+	opts.IncludeHidden = req.GetBool("includeHidden", false)
+	opts.IncludeDirs = req.GetBool("includeDirs", false)
+	opts.IncludeFiles = req.GetBool("includeFiles", true)
+	opts.CaseInsensitive = req.GetBool("caseInsensitive", true)
+	opts.MatchAny = req.GetBool("matchAny", false)
+	opts.MaxDepth = req.GetInt("maxDepth", 0)
 
 	matched, err := prjsearch.Search(ctx, n, opts)
 	if err != nil {
@@ -280,8 +281,7 @@ func fsStat(ctx context.Context, proj *project.Project, req mcp.CallToolRequest)
 			info["modTime"] = st.ModTime().Format(helper.TimeLayout)
 		}
 	}
-	args := helper.GetArgs(req)
-	if helper.GetBoolDefault(args, "hash", false) {
+	if req.GetBool("hash", false) {
 		h, herr := n.CalculateHash()
 		if herr == nil {
 			info["hash"] = h

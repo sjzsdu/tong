@@ -63,18 +63,16 @@ func webFetch(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult
 		timeout float64 = 10.0
 	)
 
-	// 使用辅助函数获取url参数
-	url, found := helper.GetStringFromRequest(req, "url", "")
-	if !found {
+	// 获取url参数
+	url, err := req.RequireString("url")
+	if err != nil {
 		return mcp.NewToolResultError("missing or invalid url parameter: required argument \"url\" not found"), nil
 	}
 	urlStr = strings.TrimSpace(url)
 
-	// 使用辅助函数获取timeout参数
-	timeoutVal, found := helper.GetFloatFromRequest(req, "timeout", timeout)
-	if found {
-		timeout = timeoutVal
-	}
+	// 获取timeout参数
+	timeoutVal := req.GetFloat("timeout", timeout)
+	timeout = timeoutVal
 
 	// normalize URL
 	if parsed, perr := neturl.Parse(urlStr); perr == nil && parsed.Scheme == "" {
@@ -152,17 +150,17 @@ func webSearch(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResul
 		helper.PrintWithLabel("web_search request", req)
 	}
 
-	// 使用辅助函数获取query参数
-	query, found := helper.GetStringFromRequest(req, "query", "")
-	if !found {
+	// 获取query参数
+	query, err := req.RequireString("query")
+	if err != nil {
 		return mcp.NewToolResultError("missing or invalid query parameter: required argument \"query\" not found"), nil
 	}
 
-	// 使用辅助函数获取limit参数，默认为5
-	limit, _ := helper.GetIntFromRequest(req, "limit", 5)
+	// 获取limit参数，默认为5
+	limit := req.GetInt("limit", 5)
 
-	// 使用辅助函数获取engine参数
-	userEngine, _ := helper.GetStringFromRequest(req, "engine", "")
+	// 获取engine参数
+	userEngine := req.GetString("engine", "")
 
 	// 从配置中获取API密钥
 	googleApiKey := config.GetConfig(config.KeyGoogleAPIKey)
