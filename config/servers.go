@@ -17,19 +17,4 @@ var PopularMCPServers = map[string]MCPServerConfig{
 		Env:           []string{"GITHUB_PERSONAL_ACCESS_TOKEN=your_token"},
 		TransportType: "stdio",
 	},
-	// 数据库
-	"postgresql": {
-		Timeout:       30,
-		Command:       "npx",
-		Args:          []string{"-y", "@modelcontextprotocol/server-postgresql"},
-		Env:           []string{"DATABASE_URL=your_db_url"},
-		TransportType: "stdio",
-	},
-	// 浏览器自动化
-	"playwright": {
-		Timeout:       30,
-		Command:       "npx",
-		Args:          []string{"-y", "@executeautomation/playwright-mcp-server"},
-		TransportType: "stdio",
-	},
 }

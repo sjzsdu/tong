@@ -144,7 +144,6 @@ func (c *Host) ListTools(ctx context.Context, request mcp.ListToolsRequest) ([]*
 func (c *Host) CallTool(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var lastErr error
 	var lastResult *mcp.CallToolResult
-
 	for name, client := range c.Clients {
 		result, err := client.CallTool(ctx, request)
 		if err != nil {
@@ -218,21 +217,31 @@ func (c *Host) GetTools(ctx context.Context) ([]tools.Tool, error) {
 	// 创建工具适配器列表
 	var toolsList []tools.Tool
 
-	// 遍历所有客户端的工具
-	for clientName, client := range c.Clients {
-		// 遍历该客户端的所有工具结果
-		for _, result := range results {
-			for _, tool := range result.Tools {
-				// 创建适配器
-				adapter := &MCPToolAdapter{
-					ToolName:        tool.Name,
-					ToolDescription: tool.Description,
-					Client:          client,
-					ClientName:      clientName,
-				}
-				// 添加到列表
-				toolsList = append(toolsList, adapter)
+	// 每个结果对应一个客户端，按顺序匹配
+	clientNames := make([]string, 0, len(c.Clients))
+	for name := range c.Clients {
+		clientNames = append(clientNames, name)
+	}
+
+	// 遍历结果，每个结果对应一个客户端的工具
+	for i, result := range results {
+		if i >= len(clientNames) {
+			break // 防止越界
+		}
+		clientName := clientNames[i]
+		client := c.Clients[clientName]
+
+		for _, tool := range result.Tools {
+			// 创建适配器
+			adapter := &MCPToolAdapter{
+				ToolName:        tool.Name,
+				ToolDescription: tool.Description,
+				InputSchema:     tool.InputSchema,
+				Client:          client,
+				ClientName:      clientName,
 			}
+			// 添加到列表
+			toolsList = append(toolsList, adapter)
 		}
 	}
 

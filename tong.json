@@ -1,5 +1,20 @@
 {
-    "mcpServers": {},
+    "mcpServers": {
+        "git": {
+            "timeout": 30,
+            "command": "uvx",
+            "args": [
+                "mcp-server-git"
+            ],
+            "transportType": "stdio"
+        },
+        "akshare": {
+            "command": "uvx",
+            "args": ["mcp-server-akshare"],
+            "timeout": 30,
+            "transportType": "stdio"
+        }
+    },
     "masterLLM": {
         "type": "qwen",
         "params": {}

@@ -46,12 +46,23 @@ type ToolInput struct {
 
 // ParseToolInput 解析工具输入
 func ParseToolInput(input string) (map[string]interface{}, error) {
-	var toolInput ToolInput
-	err := json.Unmarshal([]byte(input), &toolInput)
+	var params map[string]interface{}
+	err := json.Unmarshal([]byte(input), &params)
 	if err != nil {
 		return nil, fmt.Errorf("解析工具输入失败: %v", err)
 	}
-	return toolInput.Args, nil
+
+	// 检查是否有 args 包装层
+	if args, hasArgs := params["args"]; hasArgs {
+		// 有包装层，返回 args 内容
+		if argsMap, ok := args.(map[string]interface{}); ok {
+			return argsMap, nil
+		}
+		return nil, fmt.Errorf("args 字段类型错误")
+	}
+
+	// 没有包装层，直接返回参数（适配 LangChain Go Agent）
+	return params, nil
 }
 
 // GetCustomTools 返回自定义工具列表
@@ -61,7 +72,7 @@ func GetCustomTools() []tools.Tool {
 	// 添加一个简单的计算器工具
 	calculatorTool := NewCustomTool(
 		"calculator",
-		"一个简单的计算器工具，可以执行基本的数学运算。输入格式: {\"args\": {\"operation\": \"add|subtract|multiply|divide\", \"a\": number, \"b\": number}}",
+		"一个简单的计算器工具，可以执行基本的数学运算。输入格式: {\"operation\": \"add|subtract|multiply|divide\", \"a\": number, \"b\": number} 或 {\"args\": {\"operation\": \"add|subtract|multiply|divide\", \"a\": number, \"b\": number}}",
 		func(ctx context.Context, input string) (string, error) {
 			args, err := ParseToolInput(input)
 			if err != nil {
@@ -107,7 +118,7 @@ func GetCustomTools() []tools.Tool {
 	// 添加一个天气工具
 	weatherTool := NewCustomTool(
 		"weather",
-		"一个天气查询工具，可以获取指定城市的天气信息。输入格式: {\"args\": {\"city\": string}}",
+		"一个天气查询工具，可以获取指定城市的天气信息。输入格式: {\"city\": string} 或 {\"args\": {\"city\": string}}",
 		func(ctx context.Context, input string) (string, error) {
 			args, err := ParseToolInput(input)
 			if err != nil {
