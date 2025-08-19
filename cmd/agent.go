@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/sjzsdu/langchaingo-cn/llms"
 	"github.com/sjzsdu/tong/cmdio"
+	"github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/lang"
 	"github.com/sjzsdu/tong/mcp"
@@ -40,6 +43,15 @@ func runAgent(cmd *cobra.Command, args []string) {
 	if promptName == "" {
 		promptName = "coder"
 	}
+
+	// Handle agent-specific configuration
+	if len(args) > 0 {
+		agentName := args[0]
+		if err := handleAgentConfig(agentName); err != nil {
+			log.Printf("Warning: failed to handle agent config for '%s': %v", agentName, err)
+		}
+	}
+
 	// 获取配置
 	config, err := GetConfig()
 	if err != nil {
@@ -114,4 +126,48 @@ func runAgent(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("会话错误: %v", err)
 	}
+}
+
+func handleAgentConfig(agentName string) error {
+	// Get the agents directory path
+	agentsDir := helper.GetPath("agents")
+	agentDir := filepath.Join(agentsDir, agentName)
+
+	// Create the agent directory if it doesn't exist
+	if _, err := os.Stat(agentDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(agentDir, 0755); err != nil {
+			return fmt.Errorf("failed to create agent directory %s: %v", agentDir, err)
+		}
+		fmt.Printf("Created agent directory: %s\n", agentDir)
+	}
+
+	// Check for tong.json in the agent directory
+	agentConfigPath := filepath.Join(agentDir, share.SCHEMA_CONFIG_FILE)
+
+	if _, err := os.Stat(agentConfigPath); os.IsNotExist(err) {
+		// tong.json doesn't exist, create a default one
+		if err := createDefaultAgentConfig(agentConfigPath); err != nil {
+			return fmt.Errorf("failed to create default config for agent '%s': %v", agentName, err)
+		}
+		fmt.Printf("Created default configuration for agent '%s' at %s\n", agentName, agentConfigPath)
+	}
+
+	configFile = agentConfigPath
+	return nil
+}
+
+// createDefaultAgentConfig creates a default configuration file for an agent
+func createDefaultAgentConfig(configPath string) error {
+	dir := filepath.Dir(configPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %v", dir, err)
+	}
+
+	defaultConfig := config.DefaultSchemaConfig()
+
+	if err := defaultConfig.ToJSON(configPath); err != nil {
+		return fmt.Errorf("failed to save default config to %s: %v", configPath, err)
+	}
+
+	return nil
 }
