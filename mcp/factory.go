@@ -5,13 +5,13 @@ import (
 	"fmt"
 
 	"github.com/mark3labs/mcp-go/client"
-	"github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/helper/coroutine"
+	"github.com/sjzsdu/tong/schema"
 	"github.com/sjzsdu/tong/share"
 )
 
-func NewHost(cfg *config.SchemaConfig) (*Host, error) {
+func NewHost(cfg *schema.SchemaConfig) (*Host, error) {
 	if cfg == nil {
 		return nil, nil
 	}
@@ -24,7 +24,7 @@ func NewHost(cfg *config.SchemaConfig) (*Host, error) {
 	}
 
 	// 过滤出启用的服务器配置
-	enabledServers := make(map[string]config.MCPServerConfig)
+	enabledServers := make(map[string]schema.MCPServerConfig)
 	for name, serverConfig := range cfg.MCPServers {
 		if !serverConfig.Disabled {
 			enabledServers[name] = serverConfig
@@ -34,8 +34,8 @@ func NewHost(cfg *config.SchemaConfig) (*Host, error) {
 	// 使用MapDict并行创建和初始化客户端
 	ctx, cancel := context.WithTimeout(context.Background(), share.TIMEOUT_MCP)
 	defer cancel()
-	
-	results := coroutine.MapDict(ctx, 0, enabledServers, func(name string, serverConfig config.MCPServerConfig) (*Client, error) {
+
+	results := coroutine.MapDict(ctx, 0, enabledServers, func(name string, serverConfig schema.MCPServerConfig) (*Client, error) {
 		// 创建MCP客户端
 		mcpClient, err := createMCPClient(serverConfig)
 		if err != nil {
@@ -44,7 +44,7 @@ func NewHost(cfg *config.SchemaConfig) (*Host, error) {
 
 		// 包装客户端
 		wrapClient := NewClient(mcpClient, WithHook(NewLogHook(name)))
-		
+
 		// 初始化客户端
 		_, initErr := wrapClient.Initialize(ctx, NewInitializeRequest())
 		if initErr != nil {
@@ -60,14 +60,14 @@ func NewHost(cfg *config.SchemaConfig) (*Host, error) {
 			fmt.Printf("客户端 %s 处理失败: %v\n", name, result.Err)
 			continue
 		}
-		
+
 		Host.Clients[name] = result.Value
 	}
 
 	return Host, nil
 }
 
-func createMCPClient(config config.MCPServerConfig) (client.MCPClient, error) {
+func createMCPClient(config schema.MCPServerConfig) (client.MCPClient, error) {
 	switch config.TransportType {
 	case "sse":
 		return client.NewSSEMCPClient(config.Url)

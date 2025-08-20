@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/lang"
 	"github.com/sjzsdu/tong/rag"
+	"github.com/sjzsdu/tong/schema"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +26,7 @@ func runAsk(cmd *cobra.Command, args []string) {
 		fmt.Println("错误: 未找到共享的项目实例")
 		os.Exit(1)
 	}
-	cfg, err := config.LoadMCPConfig(sharedProject.GetRootPath(), "")
+	cfg, err := schema.LoadMCPConfig(sharedProject.GetRootPath(), "")
 	if err != nil {
 		fmt.Printf("获取配置失败: %v\n", err)
 		os.Exit(1)

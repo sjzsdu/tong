@@ -8,10 +8,10 @@ import (
 	"time"
 
 	cnllms "github.com/sjzsdu/langchaingo-cn/llms"
-	"github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/lang"
 	"github.com/sjzsdu/tong/rag"
+	"github.com/sjzsdu/tong/schema"
 	"github.com/sjzsdu/tong/share"
 	"github.com/spf13/cobra"
 	"github.com/tmc/langchaingo/embeddings"
@@ -60,7 +60,7 @@ func runRag(cmd *cobra.Command, args []string) {
 		log.Fatalf("错误: 未找到共享的项目实例")
 	}
 	projectRoot := sharedProject.GetRootPath()
-	cfg, err := config.LoadMCPConfig(projectRoot, "")
+	cfg, err := schema.LoadMCPConfig(projectRoot, "")
 	if err != nil {
 		log.Fatalf("获取配置失败: %v", err)
 	}
@@ -110,7 +110,7 @@ func runRag(cmd *cobra.Command, args []string) {
 	}
 }
 
-func resolveOptions(cmd *cobra.Command, cfg *config.SchemaConfig, projectRoot string) rag.RAGOptions {
+func resolveOptions(cmd *cobra.Command, cfg *schema.SchemaConfig, projectRoot string) rag.RAGOptions {
 	// 标记哪些参数由命令行显式提供
 	flags := cmd.Flags()
 	streamChanged := flags.Changed("stream")
@@ -229,7 +229,7 @@ func orDefault(v, d int) int {
 }
 
 // initializeModels 初始化LLM和嵌入模型
-func initializeModels(config *config.SchemaConfig) (llms.Model, embeddings.Embedder, error) {
+func initializeModels(config *schema.SchemaConfig) (llms.Model, embeddings.Embedder, error) {
 	llm, err := cnllms.CreateLLM(config.MasterLLM.Type, config.MasterLLM.Params)
 	if err != nil {
 		return nil, nil, fmt.Errorf("初始化LLM失败: %v", err)

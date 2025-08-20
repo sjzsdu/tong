@@ -1,4 +1,4 @@
-package config_test
+package schema
 
 import (
 	"encoding/json"
@@ -6,21 +6,20 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/share"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDefaultSchemaConfig(t *testing.T) {
 	// 获取默认配置
-	defaultConfig := config.DefaultSchemaConfig()
+	defaultConfig := DefaultSchemaConfig()
 
 	// 验证默认配置不为空
 	assert.NotNil(t, defaultConfig)
 
 	// 验证默认配置中的 MCPServers 不为空
 	assert.NotNil(t, defaultConfig.MCPServers)
-	
+
 	// 验证 MasterLLM 和 EmbeddingLLM 配置不为空
 	assert.NotEmpty(t, defaultConfig.MasterLLM.Type)
 	assert.NotEmpty(t, defaultConfig.EmbeddingLLM.Type)
@@ -32,15 +31,15 @@ func TestLoadMCPConfig(t *testing.T) {
 
 	// 测试无配置文件时返回默认配置
 	t.Run("NoConfigFile", func(t *testing.T) {
-		config, err := config.LoadMCPConfig(tmpDir, "")
+		config, err := LoadMCPConfig(tmpDir, "")
 		assert.NoError(t, err)
 		assert.NotNil(t, config)
 		assert.NotNil(t, config.MCPServers)
 	})
 
 	// 创建目录配置文件
-	dirConfig := &config.SchemaConfig{
-		MCPServers: map[string]config.MCPServerConfig{
+	dirConfig := &SchemaConfig{
+		MCPServers: map[string]MCPServerConfig{
 			"dir_server": {
 				Disabled:      false,
 				Timeout:       120,
@@ -56,7 +55,7 @@ func TestLoadMCPConfig(t *testing.T) {
 
 	// 测试加载目录配置
 	t.Run("LoadDirConfig", func(t *testing.T) {
-		config, err := config.LoadMCPConfig(tmpDir, "")
+		config, err := LoadMCPConfig(tmpDir, "")
 		assert.NoError(t, err)
 		assert.NotNil(t, config)
 
@@ -70,8 +69,8 @@ func TestLoadMCPConfig(t *testing.T) {
 	})
 
 	// 创建文件配置
-	fileConfig := &config.SchemaConfig{
-		MCPServers: map[string]config.MCPServerConfig{
+	fileConfig := &SchemaConfig{
+		MCPServers: map[string]MCPServerConfig{
 			"file_server": {
 				Disabled:      false,
 				Timeout:       180,
@@ -95,7 +94,7 @@ func TestLoadMCPConfig(t *testing.T) {
 
 	// 测试同时加载目录和文件配置，文件配置优先级更高
 	t.Run("LoadBothConfigs", func(t *testing.T) {
-		config, err := config.LoadMCPConfig(tmpDir, fileConfigPath)
+		config, err := LoadMCPConfig(tmpDir, fileConfigPath)
 		assert.NoError(t, err)
 		assert.NotNil(t, config)
 
@@ -120,21 +119,21 @@ func TestLoadMCPConfig(t *testing.T) {
 
 func TestMergeConfig(t *testing.T) {
 	// 直接测试 MergeConfig 函数
-	target := config.DefaultSchemaConfig()
+	target := DefaultSchemaConfig()
 	// 确保 target.MCPServers 已初始化
 	if target.MCPServers == nil {
-		target.MCPServers = make(map[string]config.MCPServerConfig)
+		target.MCPServers = make(map[string]MCPServerConfig)
 	}
 	// 添加一个测试服务器到 target
-	target.MCPServers["test_server"] = config.MCPServerConfig{
+	target.MCPServers["test_server"] = MCPServerConfig{
 		Disabled:      false,
 		Timeout:       60,
 		Command:       "test_command",
 		TransportType: "stdio",
 	}
 
-	source := &config.SchemaConfig{
-		MCPServers: map[string]config.MCPServerConfig{
+	source := &SchemaConfig{
+		MCPServers: map[string]MCPServerConfig{
 			"new_server": {
 				Disabled:      false,
 				Timeout:       300,
@@ -152,7 +151,7 @@ func TestMergeConfig(t *testing.T) {
 	}
 
 	// 合并配置
-	config.MergeConfig(target, source)
+	MergeConfig(target, source)
 
 	// 验证新服务器已添加
 	newServer, exists := target.MCPServers["new_server"]

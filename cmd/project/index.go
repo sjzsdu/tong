@@ -6,10 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/lang"
 	"github.com/sjzsdu/tong/rag"
+	"github.com/sjzsdu/tong/schema"
 	"github.com/spf13/cobra"
 )
 
@@ -36,7 +36,7 @@ func runIndex(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 	projectRoot := sharedProject.GetRootPath()
-	cfg, err := config.LoadMCPConfig(projectRoot, "")
+	cfg, err := schema.LoadMCPConfig(projectRoot, "")
 	if err != nil {
 		fmt.Printf("获取配置失败: %v\n", err)
 		os.Exit(1)

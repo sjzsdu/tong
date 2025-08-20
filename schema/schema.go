@@ -1,4 +1,4 @@
-package config
+package schema
 
 import (
 	"encoding/json"
@@ -6,69 +6,10 @@ import (
 	"path/filepath"
 
 	"github.com/sjzsdu/langchaingo-cn/llms"
+	"github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/share"
 )
-
-// MCPServerConfig 单个 MCP 服务器的配置
-type MCPServerConfig struct {
-	Disabled      bool     `json:"disabled,omitempty"`
-	Timeout       int      `json:"timeout,omitempty"`
-	Command       string   `json:"command,omitempty"`
-	Args          []string `json:"args,omitempty"`
-	Env           []string `json:"env,omitempty"`
-	TransportType string   `json:"transportType"`
-	Url           string   `json:"url,omitempty"`
-	AutoApprove   []string `json:"autoApprove,omitempty"`
-
-	// OAuth 相关配置
-	ClientID     string   `json:"clientId,omitempty"`
-	ClientSecret string   `json:"clientSecret,omitempty"`
-	Scopes       []string `json:"scopes,omitempty"`
-}
-
-type LLMConfig struct {
-	Type   llms.LLMType           `json:"type"`
-	Params map[string]interface{} `json:"params"`
-}
-
-type EmbeddingConfig struct {
-	Type   llms.EmbeddingType     `json:"type"`
-	Params map[string]interface{} `json:"params"`
-}
-
-// RagConfig 定义 RAG 相关的可配置项（对应 tong.json 的 rag 节）
-type RagConfig struct {
-	Storage struct {
-		URL        string `json:"url,omitempty"`
-		Collection string `json:"collection,omitempty"`
-	} `json:"storage,omitempty"`
-	Splitter struct {
-		ChunkSize    int `json:"chunkSize,omitempty"`
-		ChunkOverlap int `json:"chunkOverlap,omitempty"`
-	} `json:"splitter,omitempty"`
-	Retriever struct {
-		TopK           int     `json:"topK,omitempty"`
-		ScoreThreshold float32 `json:"scoreThreshold,omitempty"`
-	} `json:"retriever,omitempty"`
-	Session struct {
-		Stream     *bool `json:"stream,omitempty"`
-		MaxHistory int   `json:"maxHistory,omitempty"`
-	} `json:"session,omitempty"`
-	DocsDir string `json:"docsDir,omitempty"`
-	Sync    struct {
-		ForceReindex        bool `json:"forceReindex,omitempty"`
-		SyncIntervalSeconds int  `json:"syncIntervalSec,omitempty"`
-	} `json:"sync,omitempty"`
-}
-
-// MCPConfig MCP 配置文件结构
-type SchemaConfig struct {
-	MCPServers   map[string]MCPServerConfig `json:"mcpServers"`
-	MasterLLM    LLMConfig                  `json:"masterLLM"`
-	EmbeddingLLM EmbeddingConfig            `json:"embeddingLLM"`
-	Rag          RagConfig                  `json:"rag,omitempty"`
-}
 
 // LoadMCPConfig 从指定目录加载 MCP 配置
 // 如果配置文件不存在，则返回默认配置
@@ -223,11 +164,11 @@ func DefaultSchemaConfig() *SchemaConfig {
 			},
 		},
 		MasterLLM: LLMConfig{
-			Type:   llms.LLMType(GetConfigWithDefault("MASTER_LLM", string(llms.DeepSeekLLM))),
+			Type:   llms.LLMType(config.GetConfigWithDefault("MASTER_LLM", string(llms.DeepSeekLLM))),
 			Params: map[string]interface{}{},
 		},
 		EmbeddingLLM: EmbeddingConfig{
-			Type:   llms.EmbeddingType(GetConfigWithDefault("EMBEDDING_LLM", string(llms.OllamaEmbedding))),
+			Type:   llms.EmbeddingType(config.GetConfigWithDefault("EMBEDDING_LLM", string(llms.OllamaEmbedding))),
 			Params: map[string]interface{}{},
 		},
 		Rag: rc,

@@ -1,4 +1,4 @@
-package config
+package schema
 
 // PopularMCPServers 流行 MCP 服务器配置的映射，键为功能名称，值为 MCPServerConfig
 var PopularMCPServers = map[string]MCPServerConfig{

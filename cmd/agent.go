@@ -9,11 +9,11 @@ import (
 
 	"github.com/sjzsdu/langchaingo-cn/llms"
 	"github.com/sjzsdu/tong/cmdio"
-	"github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/lang"
 	"github.com/sjzsdu/tong/mcp"
 	"github.com/sjzsdu/tong/prompt"
+	"github.com/sjzsdu/tong/schema"
 	"github.com/sjzsdu/tong/share"
 	"github.com/spf13/cobra"
 	"github.com/tmc/langchaingo/agents"
@@ -109,7 +109,10 @@ func runAgent(cmd *cobra.Command, args []string) {
 				agents.WithCallbacksHandler(processor.Handler),
 				openAIOption.WithSystemMessage(systemPrompt))
 
-			return agents.NewExecutor(agent, agents.WithMemory(chatMemory))
+			return agents.NewExecutor(agent,
+				agents.WithMemory(chatMemory),
+				agents.WithMaxIterations(20),
+			)
 		})
 	case "oneShotZero":
 		session = cmdio.CreateAgentAdapter(streamMode, func(processor *cmdio.AgentProcessor) *agents.Executor {
@@ -117,7 +120,10 @@ func runAgent(cmd *cobra.Command, args []string) {
 				agents.WithCallbacksHandler(processor.Handler),
 				openAIOption.WithSystemMessage(systemPrompt))
 
-			return agents.NewExecutor(agent, agents.WithMemory(chatMemory))
+			return agents.NewExecutor(agent,
+				agents.WithMemory(chatMemory),
+				agents.WithMaxIterations(20),
+			)
 		})
 	}
 
@@ -163,7 +169,7 @@ func createDefaultAgentConfig(configPath string) error {
 		return fmt.Errorf("failed to create directory %s: %v", dir, err)
 	}
 
-	defaultConfig := config.DefaultSchemaConfig()
+	defaultConfig := schema.DefaultSchemaConfig()
 
 	if err := defaultConfig.ToJSON(configPath); err != nil {
 		return fmt.Errorf("failed to save default config to %s: %v", configPath, err)

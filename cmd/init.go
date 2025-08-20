@@ -5,8 +5,8 @@ import (
 	"log"
 	"path/filepath"
 
-	configPackage "github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/lang"
+	"github.com/sjzsdu/tong/schema"
 	"github.com/sjzsdu/tong/share"
 	"github.com/spf13/cobra"
 )
@@ -37,7 +37,7 @@ func handleInitCommand(cmd *cobra.Command, args []string) {
 
 	// 处理命令行参数，添加对应的 MCP 配置
 	for _, key := range args {
-		if mcp, ok := configPackage.PopularMCPServers[key]; ok {
+		if mcp, ok := schema.PopularMCPServers[key]; ok {
 			config.MCPServers[key] = mcp
 		}
 	}

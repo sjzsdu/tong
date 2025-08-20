@@ -5,10 +5,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/lang"
 	"github.com/sjzsdu/tong/project"
+	"github.com/sjzsdu/tong/schema"
 	"github.com/sjzsdu/tong/share"
 	"github.com/spf13/cobra"
 )
@@ -49,13 +49,13 @@ func init() {
 	}
 }
 
-func GetConfig() (*config.SchemaConfig, error) {
+func GetConfig() (*schema.SchemaConfig, error) {
 	targetPath, err := helper.GetTargetPath(workDir, repoURL)
 	if err != nil {
 		fmt.Printf("failed to get target path: %v\n", err)
 		return nil, err
 	}
-	config, err := config.LoadMCPConfig(targetPath, configFile)
+	config, err := schema.LoadMCPConfig(targetPath, configFile)
 	if err != nil {
 		fmt.Printf("failed to create schema config: %v\n", err)
 		return nil, err

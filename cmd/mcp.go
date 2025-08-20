@@ -11,11 +11,11 @@ import (
 
 	"github.com/mark3labs/mcp-go/server"
 	llms "github.com/sjzsdu/langchaingo-cn/llms"
-	configPackage "github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/lang"
 	mcpHost "github.com/sjzsdu/tong/mcp"
 	"github.com/sjzsdu/tong/mcpserver"
+	"github.com/sjzsdu/tong/schema"
 	"github.com/sjzsdu/tong/share"
 	"github.com/spf13/cobra"
 	llmsPack "github.com/tmc/langchaingo/llms"
@@ -348,13 +348,13 @@ func listConfiguredMCPServers() {
 func listAvailableMCPServers() {
 	// 获取 PopularMCPServers 中的所有服务
 	services := make(map[string]interface{})
-	for name, serverConfig := range configPackage.PopularMCPServers {
+	for name, serverConfig := range schema.PopularMCPServers {
 		services[name] = serverConfig
 	}
 
 	// 打印服务列表，并提供格式化函数显示命令
 	printMCPServices("可用的 MCP 服务:", services, func(name string) string {
-		serverConfig := configPackage.PopularMCPServers[name]
+		serverConfig := schema.PopularMCPServers[name]
 		return fmt.Sprintf("%s (命令: %s %s)", name, serverConfig.Command, strings.Join(serverConfig.Args, " "))
 	})
 }

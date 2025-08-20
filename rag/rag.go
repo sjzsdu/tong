@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/lang"
+	tongSchema "github.com/sjzsdu/tong/schema"
 	"github.com/sjzsdu/tong/share"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms"
@@ -47,7 +47,7 @@ func InitializeFromConfig(ctx context.Context, masterLLM llms.Model, embeddingMo
 }
 
 // Initialize 初始化RAG系统
-func Initialize(ctx context.Context, cfg *config.SchemaConfig, options RAGOptions) (*RAG, error) {
+func Initialize(ctx context.Context, cfg *tongSchema.SchemaConfig, options RAGOptions) (*RAG, error) {
 	if cfg == nil {
 		return nil, &RagError{
 			Code:    "config_required",
@@ -66,7 +66,7 @@ func Initialize(ctx context.Context, cfg *config.SchemaConfig, options RAGOption
 }
 
 // Run 运行RAG系统
-func Run(ctx context.Context, cfg *config.SchemaConfig, options RAGOptions) error {
+func Run(ctx context.Context, cfg *tongSchema.SchemaConfig, options RAGOptions) error {
 	// 初始化RAG系统
 	rag, err := Initialize(ctx, cfg, options)
 	if err != nil {
@@ -121,7 +121,7 @@ func Run(ctx context.Context, cfg *config.SchemaConfig, options RAGOptions) erro
 }
 
 // InitializeModels 初始化LLM和嵌入模型
-func InitializeModels(cfg *config.SchemaConfig) (llms.Model, embeddings.Embedder, error) {
+func InitializeModels(cfg *tongSchema.SchemaConfig) (llms.Model, embeddings.Embedder, error) {
 	// TODO: 替换为您的实际模型初始化逻辑
 	return nil, nil, &RagError{
 		Code:    "not_implemented",
