@@ -5,16 +5,18 @@ go 1.23.0
 toolchain go1.24.0
 
 require (
+	github.com/PuerkitoBio/goquery v1.8.1
 	github.com/c-bata/go-prompt v0.2.6
 	github.com/charmbracelet/glamour v0.9.1
 	github.com/go-git/go-git/v5 v5.14.0
 	github.com/guptarohit/asciigraph v0.7.3
 	github.com/mark3labs/mcp-go v0.37.0
 	github.com/nicksnyder/go-i18n/v2 v2.5.1
-	github.com/sjzsdu/langchaingo-cn v1.0.4
+	github.com/sjzsdu/langchaingo-cn v1.0.6
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
 	github.com/tmc/langchaingo v0.1.13
+	golang.org/x/net v0.35.0
 	golang.org/x/text v0.26.0
 )
 
@@ -26,7 +28,6 @@ require (
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.1.5 // indirect
-	github.com/PuerkitoBio/goquery v1.8.1 // indirect
 	github.com/alecthomas/chroma/v2 v2.14.0 // indirect
 	github.com/andybalholm/cascadia v1.3.2 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
@@ -104,7 +105,6 @@ require (
 	go.starlark.net v0.0.0-20230302034142-4b1e35fe2254 // indirect
 	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa // indirect
-	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/term v0.32.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect

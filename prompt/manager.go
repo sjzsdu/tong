@@ -231,6 +231,7 @@ func ShowPromptContent(name string) string {
 	content := GetPromptContent(name)
 	if content == "" {
 		fmt.Printf(lang.T("Prompt not found: %s\n"), name)
+		return name
 	}
 	return content
 }
