@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/project"
@@ -130,14 +131,16 @@ type textFile struct {
 // collectTextFiles 收集所有文本文件
 func collectTextFiles(node *project.Node, currentPath string, options *PackOptions) []textFile {
 	if !node.IsDir {
-		// 如果是文件，检查是否为文本文件
-		if shouldIncludeFile(node, options) {
+		// 如果是文件，检查是否为文本文件(扩展名+内容探测)
+		if shouldIncludeFile(node, options) && !isBinaryNode(node) {
 			path := currentPath
 			if path == "" {
 				path = node.Name
 			} else {
 				path = filepath.Join(currentPath, node.Name)
 			}
+			// 记录包含
+			options.IncludedFiles = append(options.IncludedFiles, path)
 			return []textFile{{node: node, path: path}}
 		}
 		return []textFile{}
@@ -147,8 +150,9 @@ func collectTextFiles(node *project.Node, currentPath string, options *PackOptio
 	if !options.Recursive {
 		var files []textFile
 		for _, child := range node.Children {
-			if !child.IsDir && shouldIncludeFile(child, options) {
+			if !child.IsDir && shouldIncludeFile(child, options) && !isBinaryNode(child) {
 				path := filepath.Join(currentPath, child.Name)
+				options.IncludedFiles = append(options.IncludedFiles, path)
 				files = append(files, textFile{node: child, path: path})
 			}
 		}
@@ -162,7 +166,8 @@ func collectTextFiles(node *project.Node, currentPath string, options *PackOptio
 	var processNode func(n *project.Node, path string) []textFile
 	processNode = func(n *project.Node, path string) []textFile {
 		if !n.IsDir {
-			if shouldIncludeFile(n, options) {
+			if shouldIncludeFile(n, options) && !isBinaryNode(n) {
+				options.IncludedFiles = append(options.IncludedFiles, path)
 				return []textFile{{node: n, path: path}}
 			}
 			return []textFile{}
@@ -222,4 +227,58 @@ func shouldIncludeFile(node *project.Node, options *PackOptions) bool {
 	}
 
 	return helper.ShouldIncludeFile(node.Name, isHidden, filterOptions)
+}
+
+// isBinaryNode 通过内容粗略判断是否是二进制文件
+// 策略：读取前8192字节，统计不可打印字符(排除常见的换行/回车/制表)比例或是否出现0字节
+func isBinaryNode(node *project.Node) bool {
+	content, err := node.ReadContent()
+	if err != nil || len(content) == 0 {
+		return false // 读取失败时不当作二进制，交给扩展名过滤
+	}
+
+	limit := len(content)
+	if limit > 8192 {
+		limit = 8192
+	}
+	data := content[:limit]
+
+	var nonPrintable int
+	for _, b := range data {
+		if b == 0 { // NULL 字节强烈指示二进制
+			return true
+		}
+		// 允许的控制字符: \n, \r, \t
+		if b < 32 && b != 10 && b != 13 && b != 9 {
+			nonPrintable++
+			continue
+		}
+		// 尝试按 UTF-8 解码首字节快速检测
+		if b >= 0x80 { // 高位字节，尝试UTF-8
+			// 简单：跳过完整UTF-8验证，只在无法解析成合法序列时记为不可打印。
+			// 这里保守处理：不直接计入不可打印，除非后面整体UTF-8比例异常。
+			continue
+		}
+	}
+
+	// 如果不可打印字符比例 > 30% 判定为二进制
+	if float64(nonPrintable)/float64(limit) > 0.30 {
+		return true
+	}
+
+	// 额外：如果整体不是有效UTF-8且包含大量高位字节也可能是二进制
+	if !utf8.Valid(data) {
+		// 统计高位字节数量
+		var highBytes int
+		for _, b := range data {
+			if b >= 0x80 {
+				highBytes++
+			}
+		}
+		if float64(highBytes)/float64(limit) > 0.50 { // 超过一半高位且非有效UTF-8
+			return true
+		}
+	}
+
+	return false
 }

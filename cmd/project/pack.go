@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sort"
 
 	"github.com/sjzsdu/tong/project/pack"
 	"github.com/spf13/cobra"
@@ -113,4 +114,80 @@ func runPack(cmd *cobra.Command, args []string) {
 	}
 
 	fmt.Printf("打包成功! 文件已保存到: %s\n", outputFile)
+
+	// 打印打包进去的文件树状结构
+	if len(options.IncludedFiles) > 0 {
+		fmt.Println("\n包含的文件列表 (仅文本文件):")
+		// 排序确保稳定输出
+		sort.Strings(options.IncludedFiles)
+		fmt.Println(buildTreeFromPaths(options.IncludedFiles))
+	} else {
+		fmt.Println("\n没有可打包的文本文件。")
+	}
+}
+
+// buildTreeFromPaths 根据路径列表构建简单树状字符串
+func buildTreeFromPaths(paths []string) string {
+	// 构建前缀树结构
+	type Node struct {
+		Children map[string]*Node
+	}
+	root := &Node{Children: map[string]*Node{}}
+
+	for _, p := range paths {
+		parts := strings.Split(p, string(os.PathSeparator))
+		cur := root
+		for _, part := range parts {
+			if _, ok := cur.Children[part]; !ok {
+				cur.Children[part] = &Node{Children: map[string]*Node{}}
+			}
+			cur = cur.Children[part]
+		}
+	}
+
+	var lines []string
+	lines = append(lines, ".")
+
+	// 递归输出
+	var output func(node *Node, prefix string, isLast bool, name string)
+	output = func(node *Node, prefix string, isLast bool, name string) {
+		if name != "" { // 跳过根
+			linePrefix := prefix
+			if isLast {
+				linePrefix += "└── "
+			} else {
+				linePrefix += "├── "
+			}
+			lines = append(lines, linePrefix+name)
+		}
+		// 排序子节点名称
+		keys := make([]string, 0, len(node.Children))
+		for k := range node.Children {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for i, k := range keys {
+			childPrefix := prefix
+			if name != "" { // 不是根且已经输出一行
+				if isLast {
+					childPrefix += "    "
+				} else {
+					childPrefix += "│   "
+				}
+			}
+			output(node.Children[k], childPrefix, i == len(keys)-1, k)
+		}
+	}
+
+	// 输出根的直接子节点
+	keys := make([]string, 0, len(root.Children))
+	for k := range root.Children {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for i, k := range keys {
+		output(root.Children[k], "", i == len(keys)-1, k)
+	}
+
+	return strings.Join(lines, "\n")
 }
