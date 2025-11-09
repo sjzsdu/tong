@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sort"
+	"strings"
 
 	"github.com/sjzsdu/tong/project/pack"
 	"github.com/spf13/cobra"

@@ -76,7 +76,8 @@ func TestSearch_ByNameContains(t *testing.T) {
 	root := getRootNode(t, proj)
 
 	opts := DefaultSearchOptions()
-	opts.NameContains = "readme" // 忽略大小写
+	opts.NameContains = "readme" // 需要大小写不敏感匹配
+	opts.CaseInsensitive = true
 	matched, err := Search(context.Background(), root, opts)
 	if err != nil {
 		t.Fatalf("search error: %v", err)

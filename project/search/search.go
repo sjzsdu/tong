@@ -45,7 +45,7 @@ func DefaultSearchOptions() *SearchOptions {
 		IncludeFiles:    true,
 		MaxDepth:        0,
 		MaxWorkers:      0,
-		CaseInsensitive: true,
+		CaseInsensitive: false,
 		MatchAny:        false,
 	}
 }

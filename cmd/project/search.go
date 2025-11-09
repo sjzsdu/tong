@@ -3,7 +3,6 @@ package project
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -22,26 +21,40 @@ var (
 	searchIncludeFiles    bool
 	searchDepth           int
 	searchIgnoreCase      bool
+	searchAny             bool
 	searchSubdir          string
 )
 
 var SearchCmd = &cobra.Command{
-	Use:   "search <query>",
+	Use:   "search [query]",
 	Short: "在指定目录节点下并发搜索",
-	Long: `search 子命令对给定查询词进行并发搜索，默认同时按名称与内容进行匹配（任一匹配即命中）。也可通过参数指定仅按名称或内容、或使用正则。
+	Long: `search 子命令在指定子树中并发搜索。
+
+查询来源有两种：
+1) 位置参数 query （例如: tong project search README）
+2) 显式条件 --name / --name-regex / --content / --content-regex
+
+优先级与默认规则：
+• 若提供显式条件（任意 name/content 相关 flag），位置参数仅作为补充忽略，不再自动注入。
+• 若未提供显式条件：
+    - 有位置参数 => 作为名称子串条件 (NameContains)
+    - 无位置参数 => 报错（必须至少给一个条件）
+• 同时指定名称与内容条件默认 AND，可用 --any 改为 OR。
+• 默认区分大小写；使用 --ignore-case 开启不敏感匹配。
 
 示例：
-  tong project search README                        # 默认：名称或内容包含 "README"
-  tong project search '.*_test\\.go$' --name-regex   # 按名称正则
-  tong project search TODO --content                # 仅按内容子串
-  tong project search '(?i)license' --content-regex # 按内容正则（忽略大小写）
-  tong project search README --ext go,md            # 仅搜索 go、md 文件
-  tong project search README --hidden               # 包含隐藏文件/目录
-  tong project search src --dirs --subdir src       # 仅返回目录，并限定在 src 子目录
-  tong project search util --files=false            # 不返回文件
-  tong project search read --depth 2                # 限制相对根的深度为 2（根为 0）`,
-	Args: cobra.ExactArgs(1),
-	Run:  runSearch,
+  tong project search README                       # 名称包含 README（默认名称匹配）
+  tong project search --name README                # 同上（无位置参数，用 flag）
+  tong project search --content TODO               # 内容包含 TODO
+  tong project search '.*_test\\.go$' --name-regex  # 名称正则
+  tong project search --name util --content util   # 名称 AND 内容同时匹配
+  tong project search --name util --content util --any # 名称 OR 内容
+  tong project search README --ext go,md           # 扩展过滤（逗号或多次传参）
+  tong project search --name README --ignore-case  # 名称忽略大小写
+  tong project search --name README --depth 2      # 深度限制（根为 0）
+  tong project search --content license --any      # 与其他条件 OR`,
+	Args: cobra.ArbitraryArgs,
+	RunE: runSearch,
 }
 
 func init() {
@@ -55,18 +68,22 @@ func init() {
 	SearchCmd.Flags().BoolVar(&searchIncludeDirs, "dirs", false, "结果中包含目录")
 	SearchCmd.Flags().BoolVar(&searchIncludeFiles, "files", true, "结果中包含文件")
 	SearchCmd.Flags().IntVar(&searchDepth, "depth", 0, "限制搜索深度（根为0，0表示不限制）")
-	SearchCmd.Flags().BoolVar(&searchIgnoreCase, "ignore-case", true, "大小写不敏感匹配（对子串与正则均生效）")
+	SearchCmd.Flags().BoolVar(&searchIgnoreCase, "ignore-case", false, "大小写不敏感匹配（对子串与正则均生效）")
+	SearchCmd.Flags().BoolVar(&searchAny, "any", false, "名称与内容条件采用 OR 逻辑（默认 AND）")
 	SearchCmd.Flags().StringVar(&searchSubdir, "subdir", ".", "限定搜索的子目录（相对项目根）")
 }
 
-func runSearch(cmd *cobra.Command, args []string) {
-	// 查询词
-	query := args[0]
+func runSearch(cmd *cobra.Command, args []string) error {
+	// 可选位置参数
+	var query string
+	if len(args) > 0 {
+		query = args[0]
+	}
 
 	// 获取共享项目实例
 	if sharedProject == nil {
 		fmt.Printf("错误: 未找到共享的项目实例\n")
-		os.Exit(1)
+		return fmt.Errorf("no shared project")
 	}
 
 	// 基于项目根路径来处理子目录
@@ -81,7 +98,7 @@ func runSearch(cmd *cobra.Command, args []string) {
 	targetNode, err := GetTargetNode(finalTargetPath)
 	if err != nil {
 		fmt.Printf("%v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	// 构建搜索选项
@@ -90,10 +107,18 @@ func runSearch(cmd *cobra.Command, args []string) {
 	opts.NameRegex = searchNameRegex
 	opts.ContentContains = searchContentContains
 	opts.ContentRegex = searchContentRegex
-	// 若未显式指定 name/content 相关选项，则默认同时按名称与内容匹配（OR 逻辑）
-	if opts.NameContains == "" && opts.NameRegex == "" && opts.ContentContains == "" && opts.ContentRegex == "" {
+	// 判断用户是否提供显式条件
+	hasExplicit := opts.NameContains != "" || opts.NameRegex != "" || opts.ContentContains != "" || opts.ContentRegex != ""
+	if !hasExplicit {
+		if query == "" {
+			fmt.Println("错误: 缺少查询条件。请提供位置参数或使用 --name/--content 其中之一。")
+			return fmt.Errorf("missing query")
+		}
+		// 只有在无显式条件时才注入位置参数
 		opts.NameContains = query
-		opts.ContentContains = query
+	}
+	// 用户显式选择 OR
+	if searchAny {
 		opts.MatchAny = true
 	}
 	opts.Extensions = normalizeExts(searchExtensions)
@@ -101,25 +126,31 @@ func runSearch(cmd *cobra.Command, args []string) {
 	opts.IncludeDirs = searchIncludeDirs
 	opts.IncludeFiles = searchIncludeFiles
 	if searchDepth < 0 {
-		opts.MaxDepth = 0 // 不限制
-	} else {
-		opts.MaxDepth = searchDepth
+		fmt.Println("错误: depth 不能为负数")
+		return fmt.Errorf("invalid depth")
 	}
+	opts.MaxDepth = searchDepth
 	// 不设置并发度，内部默认按 CPU 核心数计算
 	opts.CaseInsensitive = searchIgnoreCase
+
+	// 防止用户同时禁用文件与目录
+	if !searchIncludeFiles && !searchIncludeDirs {
+		fmt.Println("错误: --files=false 与 --dirs=false 会导致无结果，请至少启用一种")
+		return fmt.Errorf("empty result configuration")
+	}
 
 	// 执行搜索
 	ctx := context.Background()
 	matched, err := projsearch.Search(ctx, targetNode, opts)
 	if err != nil {
 		fmt.Printf("搜索出错: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	// 输出结果（使用项目相对路径）
 	if len(matched) == 0 {
 		fmt.Println("未找到匹配项")
-		return
+		return nil
 	}
 
 	for _, n := range matched {
@@ -127,8 +158,13 @@ func runSearch(cmd *cobra.Command, args []string) {
 		if n.IsDir {
 			typeStr = "dir"
 		}
-		fmt.Printf("[%s] %s\n", typeStr, n.Path)
+		p := strings.TrimPrefix(n.Path, "/") // 显示为相对项目根
+		if p == "" {
+			p = "."
+		}
+		fmt.Printf("[%s] %s\n", typeStr, p)
 	}
+	return nil
 }
 
 func normalizeExts(exts []string) []string {
