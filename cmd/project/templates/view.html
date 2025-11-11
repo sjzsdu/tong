@@ -102,12 +102,264 @@
         .chart-reset-btn:hover svg {
             transform: rotate(180deg);
         }
+        
+        /* 固定 Header */
+        .fixed-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* 三栏布局容器 */
+        .layout-container {
+            display: flex;
+            height: 100vh;
+            padding-top: 80px; /* header 高度 */
+        }
+        
+        /* 左侧文档列表 */
+        .files-sidebar {
+            width: 280px;
+            flex-shrink: 0;
+            background: white;
+            border-right: 1px solid #e5e7eb;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        /* 中间内容区 */
+        .content-main {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            background: #f9fafb;
+        }
+        
+        /* 右侧目录 */
+        .toc-sidebar {
+            width: 280px;
+            flex-shrink: 0;
+            background: white;
+            border-left: 1px solid #e5e7eb;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .toc-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #3b82f6;
+        }
+        .toc-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .toc-item {
+            margin: 4px 0;
+        }
+        .toc-item.level-2 {
+            padding-left: 16px;
+        }
+        .toc-link {
+            display: block;
+            padding: 6px 12px;
+            color: #6b7280;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
+        }
+        .toc-link:hover {
+            background: #f3f4f6;
+            color: #3b82f6;
+            border-left-color: #3b82f6;
+        }
+        .toc-link.active {
+            background: #eff6ff;
+            color: #3b82f6;
+            font-weight: 500;
+            border-left-color: #3b82f6;
+        }
+        
+        .files-sidebar.hidden {
+            display: none;
+        }
+        
+        .toc-sidebar.hidden {
+            display: none;
+        }
+        
+        /* 侧边栏切换按钮 */
+        .sidebar-toggle {
+            position: fixed;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            z-index: 900;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            color: #4b5563;
+            transition: all 0.2s ease;
+        }
+        
+        .sidebar-toggle:hover {
+            background: #f9fafb;
+            color: #3b82f6;
+            border-color: #3b82f6;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .sidebar-toggle.left {
+            left: 1rem;
+            bottom: 2rem;
+        }
+        
+        .sidebar-toggle.right {
+            right: 1rem;
+            bottom: 2rem;
+        }
+        
+        .files-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #10b981;
+        }
+        
+        .files-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .file-item {
+            margin: 4px 0;
+        }
+        
+        .file-link {
+            display: block;
+            padding: 8px 12px;
+            color: #6b7280;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 13px;
+            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .file-link:hover {
+            background: #f3f4f6;
+            color: #10b981;
+            border-left-color: #10b981;
+        }
+        
+        .file-link.active {
+            background: #d1fae5;
+            color: #10b981;
+            font-weight: 500;
+            border-left-color: #10b981;
+        }
+        /* 自定义滚动条 */
+        .toc-sidebar::-webkit-scrollbar,
+        .files-sidebar::-webkit-scrollbar,
+        .content-main::-webkit-scrollbar {
+            width: 8px;
+        }
+        .toc-sidebar::-webkit-scrollbar-track,
+        .files-sidebar::-webkit-scrollbar-track,
+        .content-main::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .toc-sidebar::-webkit-scrollbar-thumb,
+        .files-sidebar::-webkit-scrollbar-thumb,
+        .content-main::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .toc-sidebar::-webkit-scrollbar-thumb:hover,
+        .files-sidebar::-webkit-scrollbar-thumb:hover,
+        .content-main::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        /* 响应式设计 - 小屏幕默认隐藏侧边栏 */
+        @media (max-width: 1600px) {
+            .toc-sidebar:not(.show-mobile) {
+                position: fixed;
+                right: -300px;
+                width: 280px;
+                height: calc(100vh - 80px);
+                transition: right 0.3s ease;
+                box-shadow: -4px 0 12px rgba(0, 0, 0, 0.1);
+            }
+            .toc-sidebar.show-mobile {
+                right: 0;
+            }
+            .sidebar-toggle.right {
+                display: flex;
+            }
+        }
+        
+        @media (max-width: 1280px) {
+            .files-sidebar:not(.show-mobile) {
+                position: fixed;
+                left: -300px;
+                width: 280px;
+                height: calc(100vh - 80px);
+                transition: left 0.3s ease;
+                box-shadow: 4px 0 12px rgba(0, 0, 0, 0.1);
+            }
+            .files-sidebar.show-mobile {
+                left: 0;
+            }
+            .sidebar-toggle.left {
+                display: flex;
+            }
+        }
+        
+        @media (min-width: 1601px) {
+            .sidebar-toggle.right {
+                display: none;
+            }
+        }
+        
+        @media (min-width: 1281px) {
+            .sidebar-toggle.left {
+                display: none;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .layout-container {
+                padding-top: 120px;
+            }
+        }
     </style>
 </head>
-<body class="bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
-    <div class="container mx-auto px-4 py-6 max-w-5xl">
-        <!-- Toolbar -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+<body>
+    <!-- 固定 Header -->
+    <header class="fixed-header">
+        <div class="px-6 py-4">
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-3">
                     <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
@@ -117,7 +369,7 @@
                     </div>
                     <div>
                         <h1 class="text-lg font-semibold text-gray-900">{{.FilePath}}</h1>
-                        <p class="text-sm text-gray-500">Markdown 文档</p>
+                        <p class="text-xs text-gray-500">Markdown 文档浏览器</p>
                     </div>
                 </div>
                 <div class="flex space-x-3">
@@ -138,26 +390,75 @@
                 </div>
             </div>
         </div>
-
-        <!-- Usage Tips -->
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-sm">
-            <div class="flex items-start">
-                <svg class="w-5 h-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <div>
-                    <strong class="text-blue-900">图表交互说明：</strong>
-                    <span class="text-blue-800">
-                        🖱️ 拖拽平移 · 🔍 滚轮缩放 · 🖱️ 双击放大 · 🔄 右下角重置 · ⌨️ 快捷键（+ 放大 / - 缩小 / 0 重置）
-                    </span>
+    </header>
+    
+    <!-- 侧边栏切换按钮 -->
+    <button class="sidebar-toggle left" id="files-toggle" title="切换文档列表">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+        </svg>
+        <span>文档</span>
+    </button>
+    
+    <button class="sidebar-toggle right" id="toc-toggle" title="切换目录">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+        </svg>
+        <span>目录</span>
+    </button>
+    
+    <!-- 三栏布局 -->
+    <div class="layout-container">
+        <!-- 左侧：文档列表 -->
+        <aside class="files-sidebar" id="files-sidebar">
+            <div class="files-title">📂 文档列表</div>
+            <ul class="files-list">
+                {{range .MarkdownFiles}}
+                <li class="file-item">
+                    <a href="/view{{.RelativePath}}" 
+                       class="file-link {{if eq $.FilePath .RelativePath}}active{{end}}" 
+                       title="{{.RelativePath}}">
+                        {{.Name}}
+                    </a>
+                </li>
+                {{end}}
+            </ul>
+        </aside>
+        
+        <!-- 中间：文档内容 -->
+        <main class="content-main">
+            <!-- 使用提示 -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-sm">
+                <div class="flex items-start">
+                    <svg class="w-5 h-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <div>
+                        <div class="mb-1">
+                            <strong class="text-blue-900">图表交互：</strong>
+                            <span class="text-blue-800">拖拽平移 · 滚轮缩放 · 双击放大 · 右下角重置</span>
+                        </div>
+                        <div>
+                            <strong class="text-blue-900">导航：</strong>
+                            <span class="text-blue-800">左侧切换文档 · 右侧章节目录 · 滚动自动高亮</span>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-
-        <!-- Content -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-8 markdown-body" id="content">
-            <!-- Markdown content will be rendered here -->
-        </div>
+            
+            <!-- 文档内容 -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-8 markdown-body" id="content">
+                <!-- Markdown content will be rendered here -->
+            </div>
+        </main>
+        
+        <!-- 右侧：文档目录 -->
+        <aside class="toc-sidebar" id="toc-sidebar">
+            <div class="toc-title">📑 文档目录</div>
+            <ul class="toc-list" id="toc-list">
+                <!-- 动态生成的目录项 -->
+            </ul>
+        </aside>
     </div>
     
     <!-- 原始内容 -->
@@ -191,6 +492,9 @@
             contentDiv.innerHTML = html;
             
             console.log('Markdown 渲染完成');
+            
+            // 生成目录
+            generateTableOfContents();
             
             // 初始化 Mermaid
             if (typeof mermaid !== 'undefined') {
@@ -446,6 +750,158 @@
                             break;
                     }
                 });
+                
+        // 生成目录函数
+        function generateTableOfContents() {
+            const contentDiv = document.getElementById('content');
+            const tocList = document.getElementById('toc-list');
+            const tocSidebar = document.querySelector('.toc-sidebar');
+            const headings = contentDiv.querySelectorAll('h1, h2');
+            
+            if (headings.length === 0) {
+                if (tocSidebar) {
+                    tocSidebar.innerHTML = '<div class="text-gray-500 text-sm p-4">📑 文档无标题</div>';
+                }
+                console.log('文档中没有找到标题');
+                return;
+            }
+            
+            tocList.innerHTML = '';
+            
+            headings.forEach((heading, index) => {
+                // 为标题添加 ID
+                const id = `heading-${index}`;
+                heading.id = id;
+                
+                // 创建目录项
+                const li = document.createElement('li');
+                const level = heading.tagName.toLowerCase() === 'h2' ? 'level-2' : 'level-1';
+                li.className = `toc-item ${level}`;
+                
+                const link = document.createElement('a');
+                link.className = 'toc-link';
+                link.href = `#${id}`;
+                link.textContent = heading.textContent;
+                link.setAttribute('data-heading-id', id);
+                
+                // 点击跳转（滚动 content-main 容器）
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const target = document.getElementById(id);
+                    const contentMain = document.querySelector('.content-main');
+                    if (target && contentMain) {
+                        const targetTop = target.offsetTop - 100; // 偏移量
+                        contentMain.scrollTo({ top: targetTop, behavior: 'smooth' });
+                        
+                        // 更新活跃状态
+                        updateActiveTocItem(id);
+                    }
+                });
+                
+                li.appendChild(link);
+                tocList.appendChild(li);
+            });
+            
+            console.log(`生成了 ${headings.length} 个目录项`);
+            
+            // 初始化滚动监听
+            initScrollSpy();
+        }
+        
+        // 滚动监听 - 高亮当前阅读位置
+        function initScrollSpy() {
+            const headings = document.querySelectorAll('#content h1, #content h2');
+            const contentMain = document.querySelector('.content-main');
+            
+            if (headings.length === 0 || !contentMain) return;
+            
+            // 创建 Intersection Observer，监听 content-main 容器中的滚动
+            const observerOptions = {
+                root: contentMain, // 监听 content-main 容器
+                rootMargin: '-20% 0px -70% 0px', // 当标题在容器 20% 位置时激活
+                threshold: 0
+            };
+            
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        updateActiveTocItem(entry.target.id);
+                    }
+                });
+            }, observerOptions);
+            
+            headings.forEach(heading => {
+                observer.observe(heading);
+            });
+            
+            console.log('滚动监听已初始化，监听', headings.length, '个标题');
+        }
+        
+        // 更新目录活跃状态
+        function updateActiveTocItem(headingId) {
+            const tocLinks = document.querySelectorAll('.toc-link');
+            const tocSidebar = document.querySelector('.toc-sidebar');
+            
+            tocLinks.forEach(link => {
+                if (link.getAttribute('data-heading-id') === headingId) {
+                    link.classList.add('active');
+                    // 滚动目录到可视区域
+                    if (tocSidebar) {
+                        const linkTop = link.offsetTop;
+                        const sidebarScrollTop = tocSidebar.scrollTop;
+                        const sidebarHeight = tocSidebar.clientHeight;
+                        
+                        // 如果链接不在可见区域，滚动到可见区域
+                        if (linkTop < sidebarScrollTop || linkTop > sidebarScrollTop + sidebarHeight - 100) {
+                            tocSidebar.scrollTo({ top: linkTop - 100, behavior: 'smooth' });
+                        }
+                    }
+                } else {
+                    link.classList.remove('active');
+                }
+            });
+        }
+        
+        // 侧边栏切换功能
+        const filesToggle = document.getElementById('files-toggle');
+        const filesSidebar = document.getElementById('files-sidebar');
+        const tocToggle = document.getElementById('toc-toggle');
+        const tocSidebar = document.getElementById('toc-sidebar');
+        
+        if (filesToggle && filesSidebar) {
+            filesToggle.addEventListener('click', function() {
+                filesSidebar.classList.toggle('show-mobile');
+                
+                // 更新按钮图标
+                const svg = this.querySelector('svg');
+                const span = this.querySelector('span');
+                if (filesSidebar.classList.contains('show-mobile')) {
+                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>';
+                    span.textContent = '关闭';
+                } else {
+                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>';
+                    span.textContent = '文档';
+                }
+            });
+        }
+        
+        if (tocToggle && tocSidebar) {
+            tocToggle.addEventListener('click', function() {
+                tocSidebar.classList.toggle('show-mobile');
+                
+                // 更新按钮图标
+                const svg = this.querySelector('svg');
+                const span = this.querySelector('span');
+                if (tocSidebar.classList.contains('show-mobile')) {
+                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>';
+                    span.textContent = '关闭';
+                } else {
+                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>';
+                    span.textContent = '目录';
+                }
+            });
+        }
+        
         });
     </script>
     

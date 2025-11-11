@@ -59,7 +59,7 @@ func runMarkdownServer() {
 
 	// 设置路由
 	mux := http.NewServeMux()
-	
+
 	// 首页 - 文件列表
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
@@ -68,12 +68,12 @@ func runMarkdownServer() {
 			http.NotFound(w, r)
 		}
 	})
-	
+
 	// 查看markdown文件
 	mux.HandleFunc("/view/", func(w http.ResponseWriter, r *http.Request) {
 		handleMarkdownView(w, r, proj)
 	})
-	
+
 	// 原始markdown内容
 	mux.HandleFunc("/raw/", func(w http.ResponseWriter, r *http.Request) {
 		handleMarkdownRaw(w, r, proj)
@@ -180,6 +180,13 @@ func handleMarkdownView(w http.ResponseWriter, r *http.Request, proj *project.Pr
 		return
 	}
 
+	// 获取所有markdown文件列表
+	markdownFiles, err := getMarkdownFiles(proj)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("获取文件列表失败: %v", err), http.StatusInternalServerError)
+		return
+	}
+
 	// 从 embed 文件系统加载模板
 	tmplContent, err := templateFS.ReadFile("templates/view.html")
 	if err != nil {
@@ -189,13 +196,15 @@ func handleMarkdownView(w http.ResponseWriter, r *http.Request, proj *project.Pr
 
 	tmpl := template.Must(template.New("view").Parse(string(tmplContent)))
 	data := struct {
-		FilePath string
-		Content  template.HTML
-		RawPath  string
+		FilePath      string
+		Content       template.HTML
+		RawPath       string
+		MarkdownFiles []MarkdownFile
 	}{
-		FilePath: filePath,
-		Content:  template.HTML(content),
-		RawPath:  "/raw" + filePath,
+		FilePath:      filePath,
+		Content:       template.HTML(content),
+		RawPath:       "/raw" + filePath,
+		MarkdownFiles: markdownFiles,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
