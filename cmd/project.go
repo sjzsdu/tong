@@ -14,17 +14,18 @@ var projectCmd = &cobra.Command{
 	Long: `project 命令提供了一系列项目管理功能，包括文件树状结构显示、项目打包等。
 
 可用的子命令：
-  tree      显示项目目录的树状结构
-  pack      打包项目文件
-  search    搜索项目节点
-  blame     统计作者/时间粒度的提交变更
-  rag       基于项目节点索引并检索文档
-  markdown  启动Markdown文档服务，优雅展示项目中的所有.md文件
-  uml       生成 UML 类图文档
+  tree       显示项目目录的树状结构
+  pack       打包项目文件
+  search     搜索项目节点
+  blame      统计作者/时间粒度的提交变更
+  rag        基于项目节点索引并检索文档
+  markdown   启动Markdown文档服务，优雅展示项目中的所有.md文件
+  uml        智能生成 UML 类图文档（两阶段：大纲 + 并发生成）
 
 示例：
   tong project tree                    # 显示当前目录的树状结构
-  tong project tree --stats            # 显示树状结构和统计信息`,
+  tong project tree --stats            # 显示树状结构和统计信息
+  tong project uml                     # 智能生成 UML 架构文档`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// 在执行任何子命令之前，先创建项目实例
 		proj, err := GetProject()
