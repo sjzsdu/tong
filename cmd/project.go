@@ -20,6 +20,7 @@ var projectCmd = &cobra.Command{
   blame     统计作者/时间粒度的提交变更
   rag       基于项目节点索引并检索文档
   markdown  启动Markdown文档服务，优雅展示项目中的所有.md文件
+  uml       生成 UML 类图文档
 
 示例：
   tong project tree                    # 显示当前目录的树状结构
@@ -47,6 +48,7 @@ func init() {
 	projectCmd.AddCommand(projectSubcommand.SearchCmd)
 	projectCmd.AddCommand(projectSubcommand.BlameCmd)
 	projectCmd.AddCommand(projectSubcommand.MarkdownCommand)
+	projectCmd.AddCommand(projectSubcommand.UmlCommand)
 
 	initProjectArgs(projectCmd)
 }
