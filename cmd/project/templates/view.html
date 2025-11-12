@@ -48,6 +48,7 @@
         }
         .mermaid {
             width: 100%;
+            min-height: 50vh;
             max-height: 80vh;
             overflow: hidden;
             display: flex;
@@ -354,9 +355,64 @@
                 padding-top: 120px;
             }
         }
+        
+        /* Loading 状态 */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s ease-out;
+        }
+        
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid #e5e7eb;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            margin-top: 20px;
+            color: #667eea;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        
+        .loading-progress {
+            margin-top: 10px;
+            color: #6b7280;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">正在加载文档...</div>
+        <div class="loading-progress" id="loading-progress">准备渲染</div>
+    </div>
+    
     <!-- 固定 Header -->
     <header class="fixed-header">
         <div class="px-6 py-4">
@@ -468,10 +524,30 @@
         // 存储所有图表的 pan-zoom 实例和初始状态
         const chartInstances = new Map();
         
+        // Loading 进度管理
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingProgress = document.getElementById('loading-progress');
+        
+        function updateLoadingProgress(message) {
+            if (loadingProgress) {
+                loadingProgress.textContent = message;
+            }
+            console.log('Loading:', message);
+        }
+        
+        function hideLoading() {
+            if (loadingOverlay) {
+                setTimeout(() => {
+                    loadingOverlay.classList.add('hidden');
+                }, 300);
+            }
+        }
+        
         document.addEventListener("DOMContentLoaded", function() {
             const markdownContent = document.getElementById('markdown-content').textContent;
             const contentDiv = document.getElementById('content');
             
+            updateLoadingProgress('开始渲染 Markdown...');
             console.log('开始渲染 Markdown...');
             
             // 配置 marked.js
@@ -491,6 +567,7 @@
             let html = marked.parse(markdownContent);
             contentDiv.innerHTML = html;
             
+            updateLoadingProgress('Markdown 渲染完成，生成目录...');
             console.log('Markdown 渲染完成');
             
             // 生成目录
@@ -498,6 +575,7 @@
             
             // 初始化 Mermaid
             if (typeof mermaid !== 'undefined') {
+                updateLoadingProgress('初始化 Mermaid 图表引擎...');
                 console.log('初始化 Mermaid...');
                 
                 try {
@@ -549,6 +627,14 @@
                     
                     // 查找所有 mermaid 代码块并转换
                     const mermaidBlocks = contentDiv.querySelectorAll('code.language-mermaid');
+                    
+                    if (mermaidBlocks.length === 0) {
+                        updateLoadingProgress('文档加载完成（无图表）');
+                        hideLoading();
+                        return;
+                    }
+                    
+                    updateLoadingProgress(`找到 ${mermaidBlocks.length} 个 Mermaid 图表，准备渲染...`);
                     console.log('找到', mermaidBlocks.length, '个 mermaid 图表');
                     
                     mermaidBlocks.forEach((block, index) => {
@@ -566,6 +652,7 @@
                         // 创建 mermaid 容器
                         const mermaidDiv = document.createElement('div');
                         mermaidDiv.className = 'mermaid';
+                        mermaidDiv.setAttribute('data-chart-index', index); // 添加索引标记
                         
                         // 检测是否是甘特图，添加特殊类
                         if (mermaidCode.trim().startsWith('gantt')) {
@@ -592,17 +679,52 @@
                         preElement.parentNode.replaceChild(containerDiv, preElement);
                     });
                     
-                    // 渲染所有 mermaid 图表
-                    mermaid.run({
-                        querySelector: '.mermaid'
-                    }).then(() => {
-                        console.log('所有 Mermaid 图表渲染完成');
+                    // 逐个渲染 mermaid 图表（独立处理，避免一个失败影响全部）
+                    const renderPromises = [];
+                    const totalCharts = document.querySelectorAll('.mermaid').length;
+                    let renderedCount = 0;
+                    
+                    document.querySelectorAll('.mermaid').forEach((mermaidDiv, index) => {
+                        const promise = mermaid.render('mermaid-svg-' + index, mermaidDiv.textContent)
+                            .then(result => {
+                                mermaidDiv.innerHTML = result.svg;
+                                renderedCount++;
+                                updateLoadingProgress(`渲染图表 ${renderedCount}/${totalCharts}...`);
+                                console.log('图表', index + 1, '渲染成功');
+                                return { index, success: true };
+                            })
+                            .catch(error => {
+                                console.error('图表', index + 1, '渲染失败:', error);
+                                renderedCount++;
+                                updateLoadingProgress(`渲染图表 ${renderedCount}/${totalCharts} (1 个失败)...`);
+                                const originalCode = mermaidDiv.textContent;
+                                mermaidDiv.innerHTML = '<div class="text-red-500 p-3 border border-red-300 rounded bg-red-50">' +
+                                    '<strong>⚠️ 图表渲染失败</strong><br>' +
+                                    '<span class="text-sm text-red-600">错误: ' + error.message + '</span><br>' +
+                                    '<details class="mt-2">' +
+                                    '<summary class="cursor-pointer text-sm text-red-700 hover:text-red-900">查看原始代码</summary>' +
+                                    '<pre class="text-xs mt-2 p-2 bg-gray-100 text-left overflow-x-auto">' + 
+                                    originalCode.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>' +
+                                    '</details>' +
+                                    '</div>';
+                                return { index, success: false };
+                            });
+                        renderPromises.push(promise);
+                    });
+                    
+                    // 等待所有图表渲染完成（成功或失败）
+                    Promise.allSettled(renderPromises).then(() => {
+                        updateLoadingProgress('初始化图表交互功能...');
+                        console.log('所有 Mermaid 图表处理完成');
                         
-                        // 初始化纯 JavaScript 的缩放和平移功能
+                        // 初始化纯 JavaScript 的缩放和平移功能（只为成功渲染的图表）
                         setTimeout(function() {
                             document.querySelectorAll('.mermaid-container').forEach(function(container) {
                                 const svg = container.querySelector('svg');
-                                if (!svg) return;
+                                if (!svg) {
+                                    console.log('跳过未成功渲染的图表:', container.id);
+                                    return; // 跳过渲染失败的图表
+                                }
                                 
                                 const containerId = container.id;
                                 console.log('初始化交互功能:', containerId);
@@ -699,27 +821,22 @@
                                     }
                                 });
                             });
+                            
+                            // 所有功能初始化完成，隐藏 loading
+                            updateLoadingProgress('加载完成！');
+                            hideLoading();
                         }, 500);
-                    }).catch(error => {
-                        console.error('Mermaid 渲染失败:', error);
-                        // 显示错误信息
-                        document.querySelectorAll('.mermaid').forEach((div) => {
-                            if (!div.querySelector('svg')) {
-                                const originalCode = div.textContent;
-                                div.innerHTML = '<div class="text-red-500 p-3 border border-red-300 rounded bg-red-50">' +
-                                    '<strong>图表渲染失败:</strong> ' + error.message + '<br>' +
-                                    '<pre class="text-xs mt-2 p-2 bg-gray-100 text-left overflow-x-auto">' + 
-                                    originalCode.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>' +
-                                    '</div>';
-                            }
-                        });
                     });
                     
                 } catch (error) {
                     console.error('Mermaid 初始化失败:', error);
+                    updateLoadingProgress('Mermaid 初始化失败');
+                    hideLoading();
                 }
             } else {
                 console.error('Mermaid 库未加载');
+                updateLoadingProgress('Mermaid 库未加载');
+                hideLoading();
             }
             
                 // 全局键盘快捷键

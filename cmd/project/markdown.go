@@ -147,6 +147,26 @@ func handleMarkdownList(w http.ResponseWriter, r *http.Request, proj *project.Pr
 			}
 			return 0
 		},
+		"multiply": func(a, b interface{}) int {
+			var ai, bi int
+			switch v := a.(type) {
+			case int:
+				ai = v
+			case int64:
+				ai = int(v)
+			case float64:
+				ai = int(v)
+			}
+			switch v := b.(type) {
+			case int:
+				bi = v
+			case int64:
+				bi = int(v)
+			case float64:
+				bi = int(v)
+			}
+			return ai * bi
+		},
 	}
 
 	tmpl := template.Must(template.New("list").Funcs(funcMap).Parse(string(tmplContent)))
@@ -180,6 +200,9 @@ func handleMarkdownView(w http.ResponseWriter, r *http.Request, proj *project.Pr
 		return
 	}
 
+	// 处理 Markdown 内容，修复 Mermaid 图表中的语法问题
+	processedContent := sanitizeMarkdownForMermaid(string(content))
+
 	// 获取所有markdown文件列表
 	markdownFiles, err := getMarkdownFiles(proj)
 	if err != nil {
@@ -202,7 +225,7 @@ func handleMarkdownView(w http.ResponseWriter, r *http.Request, proj *project.Pr
 		MarkdownFiles []MarkdownFile
 	}{
 		FilePath:      filePath,
-		Content:       template.HTML(content),
+		Content:       template.HTML(processedContent),
 		RawPath:       "/raw" + filePath,
 		MarkdownFiles: markdownFiles,
 	}
@@ -247,6 +270,8 @@ type MarkdownFile struct {
 	Name         string
 	Size         int64
 	RelativePath string
+	Title        string // 从 MD 文件中提取的主标题
+	Description  string // 从 MD 文件中提取的描述（第一段文字）
 }
 
 // getMarkdownFiles 获取项目中所有的markdown文件
@@ -267,11 +292,16 @@ func getMarkdownFiles(proj *project.Project) ([]MarkdownFile, error) {
 				file.Size = node.Info.Size()
 			}
 
-			// 如果大小为0，尝试读取内容获取大小
-			if file.Size == 0 {
-				if content, err := node.ReadContent(); err == nil {
+			// 读取内容提取标题和描述
+			if content, err := node.ReadContent(); err == nil {
+				if file.Size == 0 {
 					file.Size = int64(len(content))
 				}
+
+				// 提取标题和描述
+				title, desc := extractTitleAndDescription(string(content))
+				file.Title = title
+				file.Description = desc
 			}
 
 			markdownFiles = append(markdownFiles, file)
@@ -289,6 +319,178 @@ func getMarkdownFiles(proj *project.Project) ([]MarkdownFile, error) {
 	})
 
 	return markdownFiles, nil
+}
+
+// extractTitleAndDescription 从 Markdown 内容中提取标题和描述
+func extractTitleAndDescription(content string) (title string, description string) {
+	lines := strings.Split(content, "\n")
+	foundTitle := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// 跳过空行
+		if trimmed == "" {
+			continue
+		}
+
+		// 提取第一个 # 标题作为标题
+		if !foundTitle && strings.HasPrefix(trimmed, "#") {
+			// 去掉 # 符号和空格
+			title = strings.TrimSpace(strings.TrimLeft(trimmed, "#"))
+			foundTitle = true
+			continue
+		}
+
+		// 提取第一段非空文本作为描述（跳过代码块、引用等）
+		if foundTitle && description == "" {
+			// 跳过代码块标记
+			if strings.HasPrefix(trimmed, "```") {
+				continue
+			}
+			// 跳过引用块
+			if strings.HasPrefix(trimmed, ">") {
+				trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, ">"))
+			}
+			// 跳过列表项
+			if strings.HasPrefix(trimmed, "-") || strings.HasPrefix(trimmed, "*") || strings.HasPrefix(trimmed, "+") {
+				continue
+			}
+			// 跳过标题
+			if strings.HasPrefix(trimmed, "#") {
+				continue
+			}
+
+			// 如果是普通文本，作为描述
+			if len(trimmed) > 0 {
+				description = trimmed
+				// 限制描述长度
+				if len(description) > 120 {
+					description = description[:120] + "..."
+				}
+				break
+			}
+		}
+	}
+
+	// 如果没有找到标题，使用文件名
+	if title == "" {
+		title = "未命名文档"
+	}
+
+	// 如果没有找到描述
+	if description == "" {
+		description = "暂无描述"
+	}
+
+	return title, description
+}
+
+// sanitizeMarkdownForMermaid 处理 Markdown 内容，修复 Mermaid 图表中的语法问题
+func sanitizeMarkdownForMermaid(content string) string {
+	// 只处理 Mermaid 代码块中的内容
+	lines := strings.Split(content, "\n")
+	var result strings.Builder
+	inMermaidBlock := false
+	isClassDiagram := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// 检测 Mermaid 代码块的开始
+		if strings.HasPrefix(trimmed, "```mermaid") {
+			inMermaidBlock = true
+			isClassDiagram = false
+			result.WriteString(line + "\n")
+			continue
+		}
+
+		// 检测代码块的结束
+		if inMermaidBlock && strings.HasPrefix(trimmed, "```") {
+			inMermaidBlock = false
+			isClassDiagram = false
+			result.WriteString(line + "\n")
+			continue
+		}
+
+		// 在 Mermaid 代码块内，进行处理
+		if inMermaidBlock {
+			// 检测是否是类图
+			if strings.HasPrefix(trimmed, "classDiagram") {
+				isClassDiagram = true
+			}
+
+			// 1. 替换 interface{} 为 any（Go 1.18+）
+			line = strings.ReplaceAll(line, "interface{}", "any")
+			line = strings.ReplaceAll(line, "map[string]interface{}", "map[string]any")
+			line = strings.ReplaceAll(line, "[]interface{}", "[]any")
+			line = strings.ReplaceAll(line, "...interface{}", "...any")
+			line = strings.ReplaceAll(line, "chan interface{}", "chan any")
+
+			// 2. 只在类图中处理类名中的特殊字符
+			// Mermaid 类图中的关系符号：*-- (组合), o-- (聚合), --> (关联), ..> (依赖) 等
+			// 如果类名以 * 开头（如 *agents.Executor），会与 *-- 冲突
+			// 序列图、流程图等使用不同的箭头语法，不应该被处理
+			if isClassDiagram {
+				// 检查是否包含类图的关系符号
+				if strings.Contains(line, "-->") || strings.Contains(line, "<--") ||
+					strings.Contains(line, "..|>") || strings.Contains(line, "<|..") ||
+					strings.Contains(line, "*--") || strings.Contains(line, "o--") ||
+					strings.Contains(line, "--o") || strings.Contains(line, "--*") ||
+					strings.Contains(line, "<|--") || strings.Contains(line, "--|>") {
+					// 处理指针类型的类名（*ClassName）
+					// 将 *Package.Class 改为 Package.Class (去掉前导 *)
+					line = sanitizeMermaidClassName(line)
+				}
+			}
+		}
+
+		result.WriteString(line + "\n")
+	}
+
+	return result.String()
+}
+
+// sanitizeMermaidClassName 清理 Mermaid 类图中的类名特殊字符
+func sanitizeMermaidClassName(line string) string {
+	// 匹配关系箭头后的类名
+	// 支持的关系：-->, <--, .., *--, o--, --o, --* 等
+
+	// 先处理箭头右侧的类名（如：A --> *B）
+	patterns := []string{
+		"-->", "<--", "..", "*--", "o--", "--o", "--*",
+		"<|--", "--|>", "<|..", "..|>",
+	}
+
+	for _, pattern := range patterns {
+		if !strings.Contains(line, pattern) {
+			continue
+		}
+
+		parts := strings.Split(line, pattern)
+		if len(parts) != 2 {
+			continue
+		}
+
+		// 处理右侧部分（可能包含类名）
+		rightPart := strings.TrimSpace(parts[1])
+
+		// 如果以 * 开头，去掉 *
+		if strings.HasPrefix(rightPart, "*") {
+			// 找到类名（可能后面还有 : 标签）
+			tokens := strings.Fields(rightPart)
+			if len(tokens) > 0 && strings.HasPrefix(tokens[0], "*") {
+				// 去掉前导 *
+				tokens[0] = strings.TrimPrefix(tokens[0], "*")
+				rightPart = strings.Join(tokens, " ")
+			}
+		}
+
+		line = parts[0] + pattern + " " + rightPart
+		break // 只处理第一个匹配
+	}
+
+	return line
 }
 
 // openBrowser 在默认浏览器中打开URL

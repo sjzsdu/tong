@@ -18,7 +18,7 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     participant User
-    participant WebService  
+    participant WebService
     participant Database
     
     User->>WebService: Send Request
