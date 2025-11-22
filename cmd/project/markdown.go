@@ -22,7 +22,7 @@ var templateFS embed.FS
 var (
 	markdownServer *http.Server
 	serverMutex    sync.Mutex
-	serverPort     int = 8080
+	serverPort     int = 9595
 )
 
 // MarkdownCommand markdown子命令
@@ -36,7 +36,7 @@ var MarkdownCommand = &cobra.Command{
 }
 
 func init() {
-	MarkdownCommand.Flags().IntVarP(&serverPort, "port", "p", 8080, "服务端口")
+	MarkdownCommand.Flags().IntVarP(&serverPort, "port", "p", 9595, "服务端口")
 }
 
 // runMarkdownServer 启动markdown服务器
@@ -49,21 +49,13 @@ func runMarkdownServer() {
 		return
 	}
 
-	// 获取当前项目
-	currentDir, _ := os.Getwd()
-	proj, err := project.BuildProjectTree(currentDir, helper.WalkDirOptions{})
-	if err != nil {
-		fmt.Printf("加载项目失败: %v\n", err)
-		return
-	}
-
 	// 设置路由
 	mux := http.NewServeMux()
 
 	// 首页 - 文件列表
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
-			handleMarkdownList(w, r, proj)
+			handleMarkdownList(w, r)
 		} else {
 			http.NotFound(w, r)
 		}
@@ -71,36 +63,60 @@ func runMarkdownServer() {
 
 	// 查看markdown文件
 	mux.HandleFunc("/view/", func(w http.ResponseWriter, r *http.Request) {
-		handleMarkdownView(w, r, proj)
+		handleMarkdownView(w, r)
 	})
 
 	// 原始markdown内容
 	mux.HandleFunc("/raw/", func(w http.ResponseWriter, r *http.Request) {
-		handleMarkdownRaw(w, r, proj)
+		handleMarkdownRaw(w, r)
 	})
 
-	// 启动服务器
-	markdownServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", serverPort),
-		Handler: mux,
+	maxPort := serverPort + 20 // 最多尝试20个端口
+	var lastErr error
+	for port := serverPort; port <= maxPort; port++ {
+		markdownServer = &http.Server{
+			Addr:    fmt.Sprintf(":%d", port),
+			Handler: mux,
+		}
+
+		fmt.Printf("正在启动Markdown文档服务，端口: %d\n", port)
+
+		// 启动服务器
+		err := markdownServer.ListenAndServe()
+		if err == nil || err == http.ErrServerClosed {
+			fmt.Printf("Markdown文档服务已启动: http://localhost:%d\n", port)
+			fmt.Println("按 Ctrl+C 停止服务...")
+			go openBrowser(fmt.Sprintf("http://localhost:%d", port))
+			return
+		}
+
+		if strings.Contains(err.Error(), "address already in use") {
+			fmt.Printf("端口 %d 已被占用，尝试下一个端口...\n", port)
+			lastErr = err
+			continue
+		} else {
+			fmt.Printf("服务器启动失败: %v\n", err)
+			markdownServer = nil
+			return
+		}
 	}
+	fmt.Printf("所有端口均不可用，最后错误: %v\n", lastErr)
+	markdownServer = nil
+}
 
-	fmt.Printf("正在启动Markdown文档服务，端口: %d\n", serverPort)
-	fmt.Printf("Markdown文档服务已启动: http://localhost:%d\n", serverPort)
-	fmt.Println("按 Ctrl+C 停止服务...")
-
-	// 自动打开浏览器
-	go openBrowser(fmt.Sprintf("http://localhost:%d", serverPort))
-
-	// 启动服务器
-	if err := markdownServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		fmt.Printf("服务器启动失败: %v\n", err)
-		markdownServer = nil
-	}
+// getCurrentProject 获取当前最新的项目树
+func getCurrentProject() (*project.Project, error) {
+	currentDir, _ := os.Getwd()
+	return project.BuildProjectTree(currentDir, helper.WalkDirOptions{})
 }
 
 // handleMarkdownList 处理markdown文件列表页面
-func handleMarkdownList(w http.ResponseWriter, r *http.Request, proj *project.Project) {
+func handleMarkdownList(w http.ResponseWriter, r *http.Request) {
+	proj, err := getCurrentProject()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("加载项目失败: %v", err), http.StatusInternalServerError)
+		return
+	}
 	markdownFiles, err := getMarkdownFiles(proj)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("获取markdown文件失败: %v", err), http.StatusInternalServerError)
@@ -178,7 +194,14 @@ func handleMarkdownList(w http.ResponseWriter, r *http.Request, proj *project.Pr
 }
 
 // handleMarkdownView 处理markdown文件查看页面
-func handleMarkdownView(w http.ResponseWriter, r *http.Request, proj *project.Project) {
+func handleMarkdownView(w http.ResponseWriter, r *http.Request) {
+	// 获取最新项目树
+	proj, err := getCurrentProject()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("加载项目失败: %v", err), http.StatusInternalServerError)
+		return
+	}
+
 	// 从URL中提取文件路径
 	filePath := strings.TrimPrefix(r.URL.Path, "/view")
 	if filePath == "" || filePath == "/" {
@@ -193,7 +216,7 @@ func handleMarkdownView(w http.ResponseWriter, r *http.Request, proj *project.Pr
 		return
 	}
 
-	// 读取文件内容
+	// 读取文件内容（确保获取最新内容）
 	content, err := node.ReadContent()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("读取文件失败: %v", err), http.StatusInternalServerError)
@@ -238,7 +261,14 @@ func handleMarkdownView(w http.ResponseWriter, r *http.Request, proj *project.Pr
 }
 
 // handleMarkdownRaw 处理原始markdown内容
-func handleMarkdownRaw(w http.ResponseWriter, r *http.Request, proj *project.Project) {
+func handleMarkdownRaw(w http.ResponseWriter, r *http.Request) {
+	// 获取最新项目树
+	proj, err := getCurrentProject()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("加载项目失败: %v", err), http.StatusInternalServerError)
+		return
+	}
+
 	// 从URL中提取文件路径
 	filePath := strings.TrimPrefix(r.URL.Path, "/raw")
 	if filePath == "" || filePath == "/" {
@@ -253,7 +283,7 @@ func handleMarkdownRaw(w http.ResponseWriter, r *http.Request, proj *project.Pro
 		return
 	}
 
-	// 读取文件内容
+	// 读取文件内容（确保获取最新内容）
 	content, err := node.ReadContent()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("读取文件失败: %v", err), http.StatusInternalServerError)
