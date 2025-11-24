@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -69,6 +70,11 @@ func runMarkdownServer() {
 	// 原始markdown内容
 	mux.HandleFunc("/raw/", func(w http.ResponseWriter, r *http.Request) {
 		handleMarkdownRaw(w, r)
+	})
+
+	// 本地图片访问
+	mux.HandleFunc("/images/", func(w http.ResponseWriter, r *http.Request) {
+		handleMarkdownImages(w, r)
 	})
 
 	maxPort := serverPort + 20 // 最多尝试20个端口
@@ -225,6 +231,11 @@ func handleMarkdownView(w http.ResponseWriter, r *http.Request) {
 
 	// 处理 Markdown 内容，修复 Mermaid 图表中的语法问题
 	processedContent := sanitizeMarkdownForMermaid(string(content))
+	
+	// 获取当前文件所在目录，用于解析相对图片路径
+	currentDir := filepath.Dir(filePath)
+	// 将本地图片引用转换为 /images/ 路径
+	processedContent = convertLocalImagesToServerPath(processedContent, currentDir)
 
 	// 获取所有markdown文件列表
 	markdownFiles, err := getMarkdownFiles(proj)
@@ -521,6 +532,148 @@ func sanitizeMermaidClassName(line string) string {
 	}
 
 	return line
+}
+
+// handleMarkdownImages 处理Markdown文档中的本地图片请求
+func handleMarkdownImages(w http.ResponseWriter, r *http.Request) {
+	// 获取最新项目树
+	proj, err := getCurrentProject()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("加载项目失败: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// 从URL中提取图片文件路径
+	// URL格式: /images/[图片路径]
+	imagePath := strings.TrimPrefix(r.URL.Path, "/images")
+	if imagePath == "" || imagePath == "/" {
+		http.Error(w, "图片路径不能为空", http.StatusBadRequest)
+		return
+	}
+
+	// 查找图片文件节点
+	node, err := proj.FindNode(imagePath)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("图片不存在: %v", err), http.StatusNotFound)
+		return
+	}
+
+	// 检查是否为文件
+	if node.IsDir {
+		http.Error(w, "路径不是图片文件", http.StatusBadRequest)
+		return
+	}
+
+	// 读取图片内容
+	content, err := node.ReadContent()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("读取图片失败: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// 设置正确的Content-Type
+	contentType := "application/octet-stream"
+	if ext := strings.ToLower(filepath.Ext(node.Name)); ext != "" {
+		if mime, ok := mimeTypes[ext[1:]]; ok {
+			contentType = mime
+		}
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(content)))
+
+	// 返回图片内容
+	w.Write(content)
+}
+
+// 常用图片类型的MIME映射
+var mimeTypes = map[string]string{
+	"jpg":  "image/jpeg",
+	"jpeg": "image/jpeg",
+	"png":  "image/png",
+	"gif":  "image/gif",
+	"svg":  "image/svg+xml",
+	"bmp":  "image/bmp",
+	"webp": "image/webp",
+	"ico":  "image/x-icon",
+	"tif":  "image/tiff",
+	"tiff": "image/tiff",
+}
+
+// convertLocalImagesToServerPath 将Markdown文档中的本地图片引用转换为服务器路径
+func convertLocalImagesToServerPath(content, currentDir string) string {
+	// 使用简单的字符串处理，避免复杂正则表达式
+	var result strings.Builder
+	
+	// 遍历内容，寻找Markdown图片语法
+	for i := 0; i < len(content); i++ {
+		// 检查是否是图片开始标记：![
+		if i+1 < len(content) && content[i] == '!' && content[i+1] == '[' {
+			// 记录当前位置
+			start := i
+			i += 2 // 跳过![
+			
+			// 寻找alt text结束标记：]
+			altEnd := strings.Index(content[i:], "]")
+			if altEnd == -1 {
+				// 不是完整的图片语法，继续
+				result.WriteString(content[start:i])
+				continue
+			}
+			
+			altText := content[i : i+altEnd]
+			i += altEnd + 1 // 跳过]和(
+			
+			// 检查是否是(，如果不是则不是完整的图片语法
+			if i >= len(content) || content[i] != '(' {
+				result.WriteString(content[start:i])
+				continue
+			}
+			i++ // 跳过(
+			
+			// 寻找图片路径结束标记：)
+			pathEnd := strings.Index(content[i:], ")")
+			if pathEnd == -1 {
+				// 不是完整的图片语法，继续
+				result.WriteString(content[start:i])
+				continue
+			}
+			
+			imagePath := content[i : i+pathEnd]
+			i += pathEnd + 1 // 跳过)
+			
+			// 检查是否是HTTP/HTTPS开头的图片，若是则不处理
+			if strings.HasPrefix(strings.ToLower(imagePath), "http://") || strings.HasPrefix(strings.ToLower(imagePath), "https://") {
+				// 外部图片，保持原样
+				result.WriteString(fmt.Sprintf("![%s](%s)", altText, imagePath))
+			} else {
+				// 清理图片路径，移除可能的查询参数或锚点
+				imagePath = strings.Split(imagePath, "?")[0]
+				imagePath = strings.Split(imagePath, "#")[0]
+				
+				// 解析图片路径相对当前文件目录
+				resolvedPath := imagePath
+				if !strings.HasPrefix(imagePath, "/") {
+					// 相对路径：将图片路径与当前文件目录结合
+					resolvedPath = filepath.Join(currentDir, imagePath)
+				}
+				// 清理路径，处理 .. 和 . segments
+				resolvedPath = filepath.Clean(resolvedPath)
+				
+				// 确保路径以 / 开头
+				if !strings.HasPrefix(resolvedPath, "/") {
+					resolvedPath = "/" + resolvedPath
+				}
+				
+				// 转换为 /images/ 路径
+				result.WriteString(fmt.Sprintf("![%s](/images%s)", altText, resolvedPath))
+			}
+		} else {
+			// 不是图片语法，直接写入
+			result.WriteByte(content[i])
+		}
+	}
+	
+	return result.String()
 }
 
 // openBrowser 在默认浏览器中打开URL
