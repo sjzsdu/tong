@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/project"
@@ -87,22 +89,39 @@ func runMarkdownServer() {
 
 		fmt.Printf("正在启动Markdown文档服务，端口: %d\n", port)
 
-		// 启动服务器
-		err := markdownServer.ListenAndServe()
-		if err == nil || err == http.ErrServerClosed {
+		// 启动服务器（使用goroutine避免阻塞错误处理）
+		serverErr := make(chan error, 1)
+		go func() {
+			err := markdownServer.ListenAndServe()
+			if err != nil && err != http.ErrServerClosed {
+				serverErr <- err
+			}
+		}()
+
+		// 给服务器一点时间启动，检查是否有端口占用错误
+		time.Sleep(100 * time.Millisecond)
+		select {
+		case err := <-serverErr:
+			if strings.Contains(err.Error(), "address already in use") {
+				fmt.Printf("端口 %d 已被占用，尝试下一个端口...\n", port)
+				lastErr = err
+				continue
+			} else {
+				fmt.Printf("服务器启动失败: %v\n", err)
+				markdownServer = nil
+				return
+			}
+		default:
+			// 服务器启动成功
 			fmt.Printf("Markdown文档服务已启动: http://localhost:%d\n", port)
 			fmt.Println("按 Ctrl+C 停止服务...")
 			go openBrowser(fmt.Sprintf("http://localhost:%d", port))
-			return
-		}
 
-		if strings.Contains(err.Error(), "address already in use") {
-			fmt.Printf("端口 %d 已被占用，尝试下一个端口...\n", port)
-			lastErr = err
-			continue
-		} else {
-			fmt.Printf("服务器启动失败: %v\n", err)
-			markdownServer = nil
+			// 等待中断信号以优雅地关闭服务器
+			quit := make(chan os.Signal, 1)
+			signal.Notify(quit, os.Interrupt)
+			<-quit
+			fmt.Println("\n正在关闭Markdown文档服务...")
 			return
 		}
 	}

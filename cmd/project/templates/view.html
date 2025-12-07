@@ -403,6 +403,121 @@
             color: #6b7280;
             font-size: 14px;
         }
+        
+        /* 打印样式 */
+        @media print {
+            /* 隐藏非打印元素 - 包括图表交互和导航相关内容 */
+            /* 1. 隐藏所有导航元素 */
+            .fixed-header,
+            .sidebar-toggle,
+            .files-sidebar,
+            .toc-sidebar,
+            [id*="sidebar"],
+            [id*="toggle"],
+            /* 2. 隐藏所有图表交互元素 */
+            .chart-reset-btn,
+            /* 3. 隐藏使用提示 */
+            .bg-blue-50.border.border-blue-200.rounded-lg.p-4.mb-4.text-sm,
+            /* 4. 隐藏所有可能的按钮 */
+            [class*="btn"],
+            button,
+            /* 5. 隐藏所有可能的侧边栏和切换元素 */
+            [class*="sidebar"],
+            [class*="toggle"],
+            /* 6. 确保容器内只有图表本身可见 */
+            .mermaid-container > *:not(.mermaid),
+            /* 7. 隐藏加载相关元素 */
+            .loading-overlay,
+            .loading-spinner,
+            .loading-text,
+            .loading-progress {
+                display: none !important;
+                visibility: hidden !important;
+                height: 0 !important;
+                width: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            
+            /* 调整页面布局 */
+            body {
+                background: white !important;
+                font-size: 12pt;
+            }
+            
+            .layout-container {
+                display: block !important;
+                height: auto !important;
+                padding-top: 0 !important;
+            }
+            
+            .content-main {
+                background: white !important;
+                padding: 0 !important;
+                width: 100% !important;
+            }
+            
+            /* 文档内容容器 */
+            .bg-white.rounded-xl.shadow-sm.border.border-gray-100.p-8.markdown-body {
+                box-shadow: none !important;
+                border: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            
+            /* 调整打印边距 */
+            @page {
+                margin: 1cm;
+            }
+            
+            /* 图表打印优化 */
+            .mermaid-container {
+                border: 1px solid #e5e7eb !important;
+                break-inside: avoid;
+                page-break-inside: avoid;
+                margin: 16px 0 !important;
+            }
+            
+            .mermaid {
+                min-height: 300px !important;
+                max-height: none !important;
+            }
+            
+            .mermaid svg {
+                max-width: 100% !important;
+                height: auto !important;
+            }
+            
+            /* 代码块打印优化 */
+            pre {
+                white-space: pre-wrap !important;
+                word-wrap: break-word !important;
+                background-color: #f6f8fa !important;
+                border-radius: 6px !important;
+                padding: 16px !important;
+                border: 1px solid #e1e4e8 !important;
+            }
+            
+            /* 链接样式 */
+            a {
+                color: #0366d6 !important;
+                text-decoration: none !important;
+            }
+            
+            a::after {
+                content: " (" attr(href) ")";
+                font-size: 80%;
+                color: #6a737d !important;
+            }
+            
+            /* 使用提示打印优化 */
+            .bg-blue-50.border.border-blue-200.rounded-lg.p-4.mb-4.text-sm {
+                background-color: #f1f8ff !important;
+                border: 1px solid #d1ecf1 !important;
+                color: #0c5460 !important;
+                page-break-inside: avoid;
+            }
+        }
     </style>
 </head>
 <body>
@@ -443,6 +558,13 @@
                         </svg>
                         查看源码
                     </a>
+                    <button onclick="printDocument()" 
+                       class="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium text-sm">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4a2 2 0 00-2-2H7a2 2 0 00-2 2v4a2 2 0 002 2zm7-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                        </svg>
+                        打印文档
+                    </button>
                 </div>
             </div>
         </div>
@@ -541,6 +663,55 @@
                     loadingOverlay.classList.add('hidden');
                 }, 300);
             }
+        }
+        
+        // 打印功能
+        function printDocument() {
+            console.log('准备打印文档...');
+            
+            // 临时调整页面布局
+            const originalBodyStyle = document.body.style.cssText;
+            const originalContentStyle = document.getElementById('content').style.cssText;
+            
+            // 隐藏不需要打印的元素
+            document.querySelectorAll('.fixed-header, .sidebar-toggle, .files-sidebar, .toc-sidebar, .chart-reset-btn').forEach(el => {
+                el.style.display = 'none';
+            });
+            
+            // 调整内容容器样式
+            document.querySelector('.layout-container').style.display = 'block';
+            document.querySelector('.layout-container').style.height = 'auto';
+            document.querySelector('.layout-container').style.paddingTop = '0';
+            document.querySelector('.content-main').style.padding = '0';
+            
+            // 确保图表已渲染完成
+            setTimeout(() => {
+                console.log('执行打印...');
+                
+                // 使用浏览器的打印功能
+                window.print();
+                
+                // 恢复原始样式
+                setTimeout(() => {
+                    console.log('恢复页面布局...');
+                    
+                    // 恢复显示隐藏的元素
+                    document.querySelectorAll('.fixed-header, .sidebar-toggle, .files-sidebar, .toc-sidebar, .chart-reset-btn').forEach(el => {
+                        el.style.display = '';
+                    });
+                    
+                    // 恢复容器样式
+                    document.querySelector('.layout-container').style.display = '';
+                    document.querySelector('.layout-container').style.height = '';
+                    document.querySelector('.layout-container').style.paddingTop = '';
+                    document.querySelector('.content-main').style.padding = '';
+                    
+                    document.body.style.cssText = originalBodyStyle;
+                    document.getElementById('content').style.cssText = originalContentStyle;
+                    
+                    console.log('打印完成，页面已恢复');
+                }, 300);
+            }, 300);
         }
         
         document.addEventListener("DOMContentLoaded", function() {
