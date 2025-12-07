@@ -231,7 +231,7 @@ func handleMarkdownView(w http.ResponseWriter, r *http.Request) {
 
 	// 处理 Markdown 内容，修复 Mermaid 图表中的语法问题
 	processedContent := sanitizeMarkdownForMermaid(string(content))
-	
+
 	// 获取当前文件所在目录，用于解析相对图片路径
 	currentDir := filepath.Dir(filePath)
 	// 将本地图片引用转换为 /images/ 路径
@@ -603,7 +603,7 @@ var mimeTypes = map[string]string{
 func convertLocalImagesToServerPath(content, currentDir string) string {
 	// 使用简单的字符串处理，避免复杂正则表达式
 	var result strings.Builder
-	
+
 	// 遍历内容，寻找Markdown图片语法
 	for i := 0; i < len(content); i++ {
 		// 检查是否是图片开始标记：![
@@ -611,7 +611,7 @@ func convertLocalImagesToServerPath(content, currentDir string) string {
 			// 记录当前位置
 			start := i
 			i += 2 // 跳过![
-			
+
 			// 寻找alt text结束标记：]
 			altEnd := strings.Index(content[i:], "]")
 			if altEnd == -1 {
@@ -619,17 +619,17 @@ func convertLocalImagesToServerPath(content, currentDir string) string {
 				result.WriteString(content[start:i])
 				continue
 			}
-			
+
 			altText := content[i : i+altEnd]
 			i += altEnd + 1 // 跳过]和(
-			
+
 			// 检查是否是(，如果不是则不是完整的图片语法
 			if i >= len(content) || content[i] != '(' {
 				result.WriteString(content[start:i])
 				continue
 			}
 			i++ // 跳过(
-			
+
 			// 寻找图片路径结束标记：)
 			pathEnd := strings.Index(content[i:], ")")
 			if pathEnd == -1 {
@@ -637,10 +637,10 @@ func convertLocalImagesToServerPath(content, currentDir string) string {
 				result.WriteString(content[start:i])
 				continue
 			}
-			
+
 			imagePath := content[i : i+pathEnd]
 			i += pathEnd + 1 // 跳过)
-			
+
 			// 检查是否是HTTP/HTTPS开头的图片，若是则不处理
 			if strings.HasPrefix(strings.ToLower(imagePath), "http://") || strings.HasPrefix(strings.ToLower(imagePath), "https://") {
 				// 外部图片，保持原样
@@ -649,7 +649,7 @@ func convertLocalImagesToServerPath(content, currentDir string) string {
 				// 清理图片路径，移除可能的查询参数或锚点
 				imagePath = strings.Split(imagePath, "?")[0]
 				imagePath = strings.Split(imagePath, "#")[0]
-				
+
 				// 解析图片路径相对当前文件目录
 				resolvedPath := imagePath
 				if !strings.HasPrefix(imagePath, "/") {
@@ -658,12 +658,12 @@ func convertLocalImagesToServerPath(content, currentDir string) string {
 				}
 				// 清理路径，处理 .. 和 . segments
 				resolvedPath = filepath.Clean(resolvedPath)
-				
+
 				// 确保路径以 / 开头
 				if !strings.HasPrefix(resolvedPath, "/") {
 					resolvedPath = "/" + resolvedPath
 				}
-				
+
 				// 转换为 /images/ 路径
 				result.WriteString(fmt.Sprintf("![%s](/images%s)", altText, resolvedPath))
 			}
@@ -672,7 +672,7 @@ func convertLocalImagesToServerPath(content, currentDir string) string {
 			result.WriteByte(content[i])
 		}
 	}
-	
+
 	return result.String()
 }
 

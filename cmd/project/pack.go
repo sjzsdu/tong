@@ -3,6 +3,7 @@ package project
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -43,7 +44,7 @@ var PackCmd = &cobra.Command{
 }
 
 func init() {
-	PackCmd.Flags().StringVarP(&outputFile, "file", "f", "./packed.md", "指定输出文件路径 (从扩展名推断格式: .md 为markdown, .txt 为text)")
+	PackCmd.Flags().StringVarP(&outputFile, "file", "f", "", "指定输出文件路径 (从扩展名推断格式: .md 为markdown, .txt 为text)，为空则复制到剪贴板")
 	PackCmd.Flags().BoolVarP(&includeHidden, "hidden", "a", false, "包含隐藏文件")
 	PackCmd.Flags().StringSliceVarP(&excludeExts, "exclude-exts", "m", []string{}, "排除的文件扩展名，用逗号分隔")
 	PackCmd.Flags().BoolVarP(&showProgress, "progress", "p", false, "显示打包进度")
@@ -79,11 +80,13 @@ func runPack(cmd *cobra.Command, args []string) {
 
 	// 从输出文件路径提取格式
 	format := "markdown" // 默认格式
-	ext := strings.ToLower(filepath.Ext(outputFile))
-	if ext == ".txt" {
-		format = "text"
-	} else if ext == ".md" {
-		format = "markdown"
+	if outputFile != "" {
+		ext := strings.ToLower(filepath.Ext(outputFile))
+		if ext == ".txt" {
+			format = "text"
+		} else if ext == ".md" {
+			format = "markdown"
+		}
 	}
 
 	// 准备打包选项
@@ -99,30 +102,50 @@ func runPack(cmd *cobra.Command, args []string) {
 	}
 	options.Formatter = formatter
 
-	// 确保输出目录存在
-	outputDir := filepath.Dir(outputFile)
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		fmt.Printf("创建输出目录失败: %v\n", err)
-		os.Exit(1)
-	}
-
 	// 执行打包
-	err = pack.PackNode(targetNode, outputFile, options)
-	if err != nil {
-		fmt.Printf("打包失败: %v\n", err)
-		os.Exit(1)
-	}
+	if outputFile == "" {
+		// 输出到剪贴板
+		content, err := pack.PackToString(targetNode, options)
+		if err != nil {
+			fmt.Printf("打包失败: %v\n", err)
+			os.Exit(1)
+		}
 
-	fmt.Printf("打包成功! 文件已保存到: %s\n", outputFile)
+		// 使用 pbcopy 命令复制到剪贴板 (macOS 原生方法)
+		cmd := exec.Command("pbcopy")
+		cmd.Stdin = strings.NewReader(content)
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("复制到剪贴板失败: %v\n", err)
+			os.Exit(1)
+		}
 
-	// 打印打包进去的文件树状结构
-	if len(options.IncludedFiles) > 0 {
-		fmt.Println("\n包含的文件列表 (仅文本文件):")
-		// 排序确保稳定输出
-		sort.Strings(options.IncludedFiles)
-		fmt.Println(buildTreeFromPaths(options.IncludedFiles))
+		fmt.Printf("打包成功! 内容已复制到剪贴板\n")
 	} else {
-		fmt.Println("\n没有可打包的文本文件。")
+		// 确保输出目录存在
+		outputDir := filepath.Dir(outputFile)
+		if err := os.MkdirAll(outputDir, 0755); err != nil {
+			fmt.Printf("创建输出目录失败: %v\n", err)
+			os.Exit(1)
+		}
+
+		// 执行打包到文件
+		err = pack.PackNode(targetNode, outputFile, options)
+		if err != nil {
+			fmt.Printf("打包失败: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("打包成功! 文件已保存到: %s\n", outputFile)
+
+		// 只在输出到文件时打印文件列表
+		if len(options.IncludedFiles) > 0 {
+			fmt.Println("\n包含的文件列表 (仅文本文件):")
+			// 排序确保稳定输出
+			sort.Strings(options.IncludedFiles)
+			fmt.Println(buildTreeFromPaths(options.IncludedFiles))
+		} else {
+			fmt.Println("\n没有可打包的文本文件。")
+		}
 	}
 }
 
