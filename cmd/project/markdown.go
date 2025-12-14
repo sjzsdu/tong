@@ -31,7 +31,7 @@ var (
 // MarkdownCommand markdown子命令
 var MarkdownCommand = &cobra.Command{
 	Use:   "markdown",
-	Short: "启动Markdown文档服务",
+	Short: "启动Markdown文档服务", 
 	Long:  "启动一个HTTP服务器，用于浏览项目中的Markdown文件",
 	Run: func(cmd *cobra.Command, args []string) {
 		runMarkdownServer()
