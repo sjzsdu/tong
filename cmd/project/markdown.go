@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -26,12 +27,15 @@ var (
 	markdownServer *http.Server
 	serverMutex    sync.Mutex
 	serverPort     int = 9595
+	// 添加新的全局变量来存储传入的markdown内容
+	markdownContent string
+	showContentOnly bool
 )
 
 // MarkdownCommand markdown子命令
 var MarkdownCommand = &cobra.Command{
 	Use:   "markdown",
-	Short: "启动Markdown文档服务", 
+	Short: "启动Markdown文档服务",
 	Long:  "启动一个HTTP服务器，用于浏览项目中的Markdown文件",
 	Run: func(cmd *cobra.Command, args []string) {
 		runMarkdownServer()
@@ -40,6 +44,9 @@ var MarkdownCommand = &cobra.Command{
 
 func init() {
 	MarkdownCommand.Flags().IntVarP(&serverPort, "port", "p", 9595, "服务端口")
+	// 添加新的命令行参数
+	MarkdownCommand.Flags().StringVarP(&markdownContent, "content", "c", "", "直接提供Markdown内容而不是从文件加载")
+	MarkdownCommand.Flags().BoolVarP(&showContentOnly, "content-only", "", false, "仅显示提供的Markdown内容，不显示其他文件列表")
 }
 
 // runMarkdownServer 启动markdown服务器
@@ -55,13 +62,33 @@ func runMarkdownServer() {
 	// 设置路由
 	mux := http.NewServeMux()
 
-	// 首页 - 文件列表
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			handleMarkdownList(w, r)
-		} else {
-			http.NotFound(w, r)
-		}
+	// 无论是否提供了markdown内容，都注册所有路由
+	if markdownContent != "" {
+		// 如果提供了内容，首页直接显示该内容
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/" {
+				handleMarkdownContent(w, r)
+			} else if r.URL.Path == "/raw-content" {
+				// 处理直接提供内容的下载
+				handleRawContentDownload(w, r)
+			} else {
+				http.NotFound(w, r)
+			}
+		})
+	} else {
+		// 否则显示文件列表
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/" {
+				handleMarkdownList(w, r)
+			} else {
+				http.NotFound(w, r)
+			}
+		})
+	}
+
+	// 专门的文件列表路由，无论是否提供了内容都显示列表
+	mux.HandleFunc("/list", func(w http.ResponseWriter, r *http.Request) {
+		handleMarkdownList(w, r)
 	})
 
 	// 查看markdown文件
@@ -220,17 +247,85 @@ func handleMarkdownList(w http.ResponseWriter, r *http.Request) {
 
 // handleMarkdownView 处理markdown文件查看页面
 func handleMarkdownView(w http.ResponseWriter, r *http.Request) {
-	// 获取最新项目树
-	proj, err := getCurrentProject()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("加载项目失败: %v", err), http.StatusInternalServerError)
-		return
-	}
-
 	// 从URL中提取文件路径
 	filePath := strings.TrimPrefix(r.URL.Path, "/view")
 	if filePath == "" || filePath == "/" {
 		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	// 检查是否是通过--content参数提供的文档
+	if markdownContent != "" {
+		// 获取默认文件名
+		defaultFileName := "/document.md"
+		// 尝试从内容中提取标题作为文件名
+		title, _ := extractTitleAndDescription(markdownContent)
+		if title != "" {
+			// 将标题转换为有效的文件名
+			fileName := strings.ToLower(title)
+			fileName = strings.ReplaceAll(fileName, " ", "-")
+			// 移除特殊字符
+			fileName = regexp.MustCompile(`[^a-z0-9\-]`).ReplaceAllString(fileName, "")
+			if fileName != "" {
+				defaultFileName = "/" + fileName + ".md"
+			}
+		}
+
+		// 如果请求的是这个特殊文档
+		if filePath == defaultFileName {
+			// 处理 Markdown 内容，修复 Mermaid 图表中的语法问题
+			processedContent := sanitizeMarkdownForMermaid(markdownContent)
+
+			// 将本地图片引用转换为 /images/ 路径（假设图片在根目录）
+			processedContent = convertLocalImagesToServerPath(processedContent, "./")
+
+			// 获取最新项目树
+			proj, err := getCurrentProject()
+			if err != nil {
+				http.Error(w, fmt.Sprintf("加载项目失败: %v", err), http.StatusInternalServerError)
+				return
+			}
+
+			// 获取所有markdown文件列表
+			markdownFiles, err := getMarkdownFiles(proj)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("获取文件列表失败: %v", err), http.StatusInternalServerError)
+				return
+			}
+
+			// 从 embed 文件系统加载模板
+			tmplContent, err := templateFS.ReadFile("templates/view.html")
+			if err != nil {
+				http.Error(w, fmt.Sprintf("模板文件读取失败: %v", err), http.StatusInternalServerError)
+				return
+			}
+
+			tmpl := template.Must(template.New("view").Parse(string(tmplContent)))
+			data := struct {
+				FilePath      string
+				Content       template.HTML
+				RawPath       string
+				MarkdownFiles []MarkdownFile
+			}{
+				FilePath:      filePath,
+				Content:       template.HTML(processedContent),
+				RawPath:       "/raw" + filePath,
+				MarkdownFiles: markdownFiles,
+			}
+
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			if err := tmpl.Execute(w, data); err != nil {
+				http.Error(w, fmt.Sprintf("模板渲染失败: %v", err), http.StatusInternalServerError)
+				return
+			}
+			return
+		}
+	}
+
+	// 获取最新项目树
+	proj, err := getCurrentProject()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("加载项目失败: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -292,17 +387,47 @@ func handleMarkdownView(w http.ResponseWriter, r *http.Request) {
 
 // handleMarkdownRaw 处理原始markdown内容
 func handleMarkdownRaw(w http.ResponseWriter, r *http.Request) {
-	// 获取最新项目树
-	proj, err := getCurrentProject()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("加载项目失败: %v", err), http.StatusInternalServerError)
-		return
-	}
-
 	// 从URL中提取文件路径
 	filePath := strings.TrimPrefix(r.URL.Path, "/raw")
 	if filePath == "" || filePath == "/" {
 		http.Error(w, "文件路径不能为空", http.StatusBadRequest)
+		return
+	}
+
+	// 检查是否是通过--content参数提供的文档
+	if markdownContent != "" {
+		// 获取默认文件名
+		defaultFileName := "/document.md"
+		// 尝试从内容中提取标题作为文件名
+		title, _ := extractTitleAndDescription(markdownContent)
+		if title != "" {
+			// 将标题转换为有效的文件名
+			fileName := strings.ToLower(title)
+			fileName = strings.ReplaceAll(fileName, " ", "-")
+			// 移除特殊字符
+			fileName = regexp.MustCompile(`[^a-z0-9\-]`).ReplaceAllString(fileName, "")
+			if fileName != "" {
+				defaultFileName = "/" + fileName + ".md"
+			}
+		}
+
+		// 如果请求的是这个特殊文档
+		if filePath == defaultFileName {
+			// 从文件路径中提取文件名
+			fileName := filepath.Base(filePath)
+
+			// 设置响应头，支持文件下载
+			w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+			w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
+			w.Write([]byte(markdownContent))
+			return
+		}
+	}
+
+	// 获取最新项目树
+	proj, err := getCurrentProject()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("加载项目失败: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -320,7 +445,17 @@ func handleMarkdownRaw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	// 从文件路径中提取文件名
+	fileName := filepath.Base(filePath)
+
+	// 确保文件名有.md扩展名
+	if !strings.HasSuffix(fileName, ".md") && !strings.HasSuffix(fileName, ".markdown") {
+		fileName += ".md"
+	}
+
+	// 设置响应头，支持文件下载
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
 	w.Write(content)
 }
 
@@ -371,6 +506,35 @@ func getMarkdownFiles(proj *project.Project) ([]MarkdownFile, error) {
 
 	if err != nil {
 		return nil, err
+	}
+
+	// 如果提供了markdown内容，将其添加到文件列表
+	if markdownContent != "" {
+		// 使用默认文件名
+		defaultFileName := "document.md"
+		// 尝试从内容中提取标题作为文件名
+		title, _ := extractTitleAndDescription(markdownContent)
+		if title != "" {
+			// 将标题转换为有效的文件名
+			fileName := strings.ToLower(title)
+			fileName = strings.ReplaceAll(fileName, " ", "-")
+			// 移除特殊字符
+			fileName = regexp.MustCompile(`[^a-z0-9\-]`).ReplaceAllString(fileName, "")
+			if fileName != "" {
+				defaultFileName = fileName + ".md"
+			}
+		}
+
+		// 添加到文件列表，确保RelativePath以斜杠开头
+		file := MarkdownFile{
+			Path:         "/" + defaultFileName,
+			Name:         defaultFileName,
+			RelativePath: "/" + defaultFileName,
+			Size:         int64(len(markdownContent)),
+			Title:        title,
+		}
+
+		markdownFiles = append(markdownFiles, file)
 	}
 
 	// 按路径排序
@@ -602,6 +766,59 @@ func handleMarkdownImages(w http.ResponseWriter, r *http.Request) {
 
 	// 返回图片内容
 	w.Write(content)
+}
+
+// handleMarkdownContent 处理直接提供的markdown内容
+func handleMarkdownContent(w http.ResponseWriter, r *http.Request) {
+	// 处理 Markdown 内容，修复 Mermaid 图表中的语法问题
+	processedContent := sanitizeMarkdownForMermaid(markdownContent)
+
+	// 将本地图片引用转换为 /images/ 路径
+	processedContent = convertLocalImagesToServerPath(processedContent, "./")
+
+	// 从 embed 文件系统加载模板
+	tmplContent, err := templateFS.ReadFile("templates/view.html")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("模板文件读取失败: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// 准备数据
+	var markdownFiles []MarkdownFile
+	if !showContentOnly {
+		// 如果不是仅显示内容，获取所有markdown文件列表
+		proj, err := getCurrentProject()
+		if err == nil {
+			markdownFiles, _ = getMarkdownFiles(proj)
+		}
+	}
+
+	tmpl := template.Must(template.New("view").Parse(string(tmplContent)))
+	data := struct {
+		FilePath      string
+		Content       template.HTML
+		RawPath       string
+		MarkdownFiles []MarkdownFile
+	}{
+		FilePath:      "直接提供的内容",
+		Content:       template.HTML(processedContent),
+		RawPath:       "/raw-content", // 设置一个固定路径用于下载
+		MarkdownFiles: markdownFiles,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.Execute(w, data); err != nil {
+		http.Error(w, fmt.Sprintf("模板渲染失败: %v", err), http.StatusInternalServerError)
+		return
+	}
+}
+
+// handleRawContentDownload 处理直接提供的markdown内容的下载
+func handleRawContentDownload(w http.ResponseWriter, r *http.Request) {
+	// 设置响应头，支持文件下载
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="document.md"`)
+	w.Write([]byte(markdownContent))
 }
 
 // 常用图片类型的MIME映射
