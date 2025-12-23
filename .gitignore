@@ -16,6 +16,7 @@
 
 # Go工作区文件
 go.work
+.trae
 
 # 编译输出目录
 /bin/

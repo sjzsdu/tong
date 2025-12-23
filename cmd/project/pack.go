@@ -17,6 +17,7 @@ var (
 	includeHidden bool
 	excludeExts   []string
 	showProgress  bool
+	useStdio      bool
 )
 
 var PackCmd = &cobra.Command{
@@ -36,6 +37,7 @@ var PackCmd = &cobra.Command{
   tong project pack /path/to/dir       # 打包指定目录到./packed.md
   tong project pack --file ./output.md # 指定输出文件路径(Markdown格式)
   tong project pack --file ./output.txt # 指定输出文件路径(文本格式)
+	tong project pack --stdio            # 直接将内容输出到终端
   tong project pack --hidden           # 包含隐藏文件
   tong project pack --exclude-exts .js,.css  # 排除指定扩展名的文件
   tong project pack --progress         # 显示打包进度`,
@@ -48,6 +50,7 @@ func init() {
 	PackCmd.Flags().BoolVarP(&includeHidden, "hidden", "a", false, "包含隐藏文件")
 	PackCmd.Flags().StringSliceVarP(&excludeExts, "exclude-exts", "m", []string{}, "排除的文件扩展名，用逗号分隔")
 	PackCmd.Flags().BoolVarP(&showProgress, "progress", "p", false, "显示打包进度")
+	PackCmd.Flags().BoolVar(&useStdio, "stdio", false, "将打包内容输出到终端 (stdout)")
 }
 
 func runPack(cmd *cobra.Command, args []string) {
@@ -103,7 +106,15 @@ func runPack(cmd *cobra.Command, args []string) {
 	options.Formatter = formatter
 
 	// 执行打包
-	if outputFile == "" {
+	if useStdio {
+		// 直接输出到终端
+		content, err := pack.PackToString(targetNode, options)
+		if err != nil {
+			fmt.Printf("打包失败: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(content)
+	} else if outputFile == "" {
 		// 输出到剪贴板
 		content, err := pack.PackToString(targetNode, options)
 		if err != nil {
