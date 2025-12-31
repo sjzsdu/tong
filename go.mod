@@ -8,6 +8,7 @@ require (
 	github.com/PuerkitoBio/goquery v1.8.1
 	github.com/c-bata/go-prompt v0.2.6
 	github.com/charmbracelet/glamour v0.9.1
+	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-git/go-git/v5 v5.14.0
 	github.com/guptarohit/asciigraph v0.7.3
 	github.com/mark3labs/mcp-go v0.43.1
@@ -18,6 +19,7 @@ require (
 	github.com/tmc/langchaingo v0.1.14
 	golang.org/x/net v0.43.0
 	golang.org/x/text v0.28.0
+	nhooyr.io/websocket v1.8.7
 )
 
 require (
@@ -109,7 +111,6 @@ require (
 	golang.org/x/term v0.34.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	nhooyr.io/websocket v1.8.7 // indirect
 )
 
 // replace github.com/sjzsdu/langchaingo-cn => ../langchaingo-cn

@@ -645,6 +645,125 @@
     <script type="text/plain" id="markdown-content">{{.Content}}</script>
 
     <script>
+        // WebSocket 实时更新
+        let ws = null;
+        let wsReconnectTimer = null;
+        
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            try {
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = function() {
+                    console.log('✓ WebSocket 已连接，实时更新已启用');
+                    // 清除重连定时器
+                    if (wsReconnectTimer) {
+                        clearTimeout(wsReconnectTimer);
+                        wsReconnectTimer = null;
+                    }
+                };
+                
+                ws.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log('WebSocket 消息:', data);
+                        
+                        if (data.type === 'reload') {
+                            console.log('📢 收到更新通知:', data.message);
+                            // 显示通知
+                            showReloadNotification(data.message);
+                            // 延迟刷新页面，给用户看到通知的时间
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 1000);
+                        }
+                    } catch (e) {
+                        console.error('解析 WebSocket 消息失败:', e);
+                    }
+                };
+                
+                ws.onerror = function(error) {
+                    console.error('WebSocket 错误:', error);
+                };
+                
+                ws.onclose = function() {
+                    console.log('✗ WebSocket 已断开，尝试重连...');
+                    // 5秒后尝试重连
+                    wsReconnectTimer = setTimeout(connectWebSocket, 5000);
+                };
+            } catch (e) {
+                console.error('WebSocket 连接失败:', e);
+                // 5秒后尝试重连
+                wsReconnectTimer = setTimeout(connectWebSocket, 5000);
+            }
+        }
+        
+        function showReloadNotification(message) {
+            // 创建通知元素
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 100px;
+                right: 20px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 16px 24px;
+                border-radius: 12px;
+                box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+                z-index: 10000;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                animation: slideInRight 0.3s ease-out;
+                max-width: 400px;
+            `;
+            
+            notification.innerHTML = `
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <div>
+                    <div style="font-weight: 600; margin-bottom: 4px;">文档已更新</div>
+                    <div style="font-size: 14px; opacity: 0.9;">${message}</div>
+                </div>
+            `;
+            
+            // 添加样式动画
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes slideInRight {
+                    from {
+                        transform: translateX(100%);
+                        opacity: 0;
+                    }
+                    to {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+            document.body.appendChild(notification);
+            
+            // 3秒后移除通知（页面会在1秒后刷新）
+            setTimeout(() => {
+                notification.style.animation = 'slideInRight 0.3s ease-out reverse';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+        
+        // 页面加载时连接 WebSocket
+        window.addEventListener('load', connectWebSocket);
+        
+        // 页面卸载时关闭 WebSocket
+        window.addEventListener('beforeunload', function() {
+            if (ws) {
+                ws.close();
+            }
+        });
+        
         // 存储所有图表的 pan-zoom 实例和初始状态
         const chartInstances = new Map();
         

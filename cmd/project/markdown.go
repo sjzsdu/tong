@@ -1,9 +1,11 @@
 package project
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -15,9 +17,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/sjzsdu/tong/helper"
 	"github.com/sjzsdu/tong/project"
 	"github.com/spf13/cobra"
+	"nhooyr.io/websocket"
 )
 
 //go:embed templates/*.html
@@ -28,17 +32,43 @@ var (
 	serverMutex    sync.Mutex
 	serverPort     int = 9595
 	// 添加新的全局变量来存储传入的markdown内容
-	markdownContent string
-	showContentOnly bool
-	markdownPattern string
+	markdownContent  string
+	showContentOnly  bool
+	markdownPattern  string
+	markdownPatterns []string // 支持多个 pattern
+	// WebSocket相关
+	wsClients      = make(map[*websocket.Conn]bool)
+	wsClientsMutex sync.Mutex
+	fileWatcher    *fsnotify.Watcher
+	watcherMutex   sync.Mutex
 )
 
 // MarkdownCommand markdown子命令
 var MarkdownCommand = &cobra.Command{
-	Use:   "markdown",
+	Use:   "markdown [files...]",
 	Short: "启动Markdown文档服务",
 	Long:  "启动一个HTTP服务器，用于浏览项目中的Markdown文件",
 	Run: func(cmd *cobra.Command, args []string) {
+		// 如果有位置参数（shell 展开的文件名），将它们添加到 patterns 中
+		if len(args) > 0 {
+			// 获取 -f flag 的实际值数量
+			flagPatterns, _ := cmd.Flags().GetStringSlice("pattern")
+			// 如果 -f 只有一个值，且有额外的 args，说明是 shell 展开的情况
+			// 例如：markdown -f PROJECT*.md 被展开为 markdown -f PROJECT_INTR.md PROJECT_INTRODUCTION.md
+			if len(flagPatterns) > 0 {
+				// 将 flag 的第一个值和所有位置参数合并
+				markdownPatterns = append([]string{}, flagPatterns[0])
+				markdownPatterns = append(markdownPatterns, args...)
+				fmt.Printf("✓ 接收到 %d 个文件/模式: %v\n", len(markdownPatterns), markdownPatterns)
+			} else {
+				// 没有 -f flag，直接使用位置参数
+				markdownPatterns = args
+				fmt.Printf("✓ 使用位置参数: %v\n", markdownPatterns)
+			}
+			if len(markdownPatterns) > 0 {
+				markdownPattern = markdownPatterns[0]
+			}
+		}
 		runMarkdownServer()
 	},
 }
@@ -48,7 +78,16 @@ func init() {
 	// 添加新的命令行参数
 	MarkdownCommand.Flags().StringVarP(&markdownContent, "content", "c", "", "直接提供Markdown内容而不是从文件加载")
 	MarkdownCommand.Flags().BoolVarP(&showContentOnly, "content-only", "", false, "仅显示提供的Markdown内容，不显示其他文件列表")
-	MarkdownCommand.Flags().StringVarP(&markdownPattern, "pattern", "f", "", "使用blob匹配模式筛选Markdown文件，例如: *.md, docs/*.md")
+	MarkdownCommand.Flags().StringSliceVarP(&markdownPatterns, "pattern", "f", []string{}, "使用blob匹配模式筛选Markdown文件，支持多个pattern，例如: *.md, docs/*.md 或 PROJECT*.md")
+
+	// 兼容旧的单个 pattern 参数（内部使用）
+	MarkdownCommand.PreRun = func(cmd *cobra.Command, args []string) {
+		// 如果使用了新的 patterns 参数（通过 -f flag 指定，带引号），更新旧的 pattern 变量以保持兼容性
+		if len(markdownPatterns) > 0 && len(args) == 0 {
+			markdownPattern = markdownPatterns[0] // 保留第一个用于日志显示
+			fmt.Printf("✓ 使用 pattern 匹配: %v\n", markdownPatterns)
+		}
+	}
 }
 
 // runMarkdownServer 启动markdown服务器
@@ -108,6 +147,9 @@ func runMarkdownServer() {
 		handleMarkdownImages(w, r)
 	})
 
+	// WebSocket 连接用于实时更新
+	mux.HandleFunc("/ws", handleWebSocket)
+
 	maxPort := serverPort + 20 // 最多尝试20个端口
 	var lastErr error
 	for port := serverPort; port <= maxPort; port++ {
@@ -146,11 +188,23 @@ func runMarkdownServer() {
 			fmt.Println("按 Ctrl+C 停止服务...")
 			go openBrowser(fmt.Sprintf("http://localhost:%d", port))
 
+			// 初始化文件监控
+			if err := initFileWatcher(); err != nil {
+				fmt.Printf("警告: 文件监控初始化失败: %v\n", err)
+			} else {
+				fmt.Println("✓ 文件监控已启动，支持实时更新")
+			}
+
 			// 等待中断信号以优雅地关闭服务器
 			quit := make(chan os.Signal, 1)
 			signal.Notify(quit, os.Interrupt)
 			<-quit
 			fmt.Println("\n正在关闭Markdown文档服务...")
+
+			// 清理资源
+			cleanupFileWatcher()
+			closeAllWebSocketClients()
+
 			return
 		}
 	}
@@ -478,83 +532,92 @@ func getMarkdownFiles(proj *project.Project) ([]MarkdownFile, error) {
 	err := proj.Visit(func(path string, node *project.Node, depth int) error {
 		// 检查是否是markdown文件
 		if !node.IsDir && strings.HasSuffix(strings.ToLower(node.Name), ".md") {
-			// 如果指定了模式，检查文件是否匹配
-			if markdownPattern != "" {
-				// 使用filepath.Match进行blob匹配
-				// 支持多种匹配方式：
-				// 1. 完整路径匹配：path（如 docs/file.md）
-				// 2. 文件名匹配：node.Name（如 file.md）
-				// 3. 相对目录匹配：如果模式包含/，则匹配相对路径
-				// 4. 递归目录匹配：*.md 匹配所有目录下的md文件
+			// 如果指定了模式，检查文件是否匹配任一 pattern
+			if len(markdownPatterns) > 0 {
+				matchedAny := false
+				for _, markdownPattern := range markdownPatterns {
+					// 使用filepath.Match进行blob匹配
+					// 支持多种匹配方式：
+					// 1. 完整路径匹配：path（如 docs/file.md）
+					// 2. 文件名匹配：node.Name（如 file.md）
+					// 3. 相对目录匹配：如果模式包含/，则匹配相对路径
+					// 4. 递归目录匹配：*.md 匹配所有目录下的md文件
 
-				// 检查模式是否包含路径分隔符
-				containsSlash := strings.Contains(markdownPattern, "/")
+					// 检查模式是否包含路径分隔符
+					containsSlash := strings.Contains(markdownPattern, "/")
 
-				// 处理递归目录匹配：*.md 匹配所有目录下的md文件
-				wildcardPattern := markdownPattern
+					// 处理递归目录匹配：*.md 匹配所有目录下的md文件
+					wildcardPattern := markdownPattern
 
-				// 初始化匹配结果
-				match := false
+					// 初始化匹配结果
+					match := false
 
-				// 尝试1: 完整路径匹配（如 docs/file.md）
-				match, _ = filepath.Match(wildcardPattern, path)
+					// 尝试1: 完整路径匹配（如 docs/file.md）
+					match, _ = filepath.Match(wildcardPattern, path)
 
-				// 尝试2: 文件名匹配（如 file.md）
-				if !match {
-					match, _ = filepath.Match(wildcardPattern, node.Name)
-				}
-
-				// 尝试3: 相对目录匹配（如果模式包含斜杠）
-				if !match && containsSlash {
-					// 提取当前文件的目录路径和文件名
-					fileDir := filepath.Dir(path)
-					fileBase := filepath.Base(path)
-
-					// 获取模式的目录部分和文件名部分
-					patternDir := filepath.Dir(wildcardPattern)
-					patternBase := filepath.Base(wildcardPattern)
-
-					// 尝试多种目录匹配方式：
-					// 1. 完整路径匹配
-					dirMatch, _ := filepath.Match(patternDir, fileDir)
-					if dirMatch {
-						match, _ = filepath.Match(patternBase, fileBase)
+					// 尝试2: 文件名匹配（如 file.md）
+					if !match {
+						match, _ = filepath.Match(wildcardPattern, node.Name)
 					}
 
-					// 2. 相对路径匹配（去掉前导斜杠）
-					if !match {
-						relativeFileDir := strings.TrimPrefix(fileDir, "/")
-						dirMatch, _ = filepath.Match(patternDir, relativeFileDir)
+					// 尝试3: 相对目录匹配（如果模式包含斜杠）
+					if !match && containsSlash {
+						// 提取当前文件的目录路径和文件名
+						fileDir := filepath.Dir(path)
+						fileBase := filepath.Base(path)
+
+						// 获取模式的目录部分和文件名部分
+						patternDir := filepath.Dir(wildcardPattern)
+						patternBase := filepath.Base(wildcardPattern)
+
+						// 尝试多种目录匹配方式：
+						// 1. 完整路径匹配
+						dirMatch, _ := filepath.Match(patternDir, fileDir)
 						if dirMatch {
 							match, _ = filepath.Match(patternBase, fileBase)
 						}
-					}
 
-					// 3. 直接匹配路径的最后一部分
-					if !match {
-						fileDirLastPart := filepath.Base(fileDir)
-						dirMatch, _ = filepath.Match(patternDir, fileDirLastPart)
-						if dirMatch {
-							match, _ = filepath.Match(patternBase, fileBase)
+						// 2. 相对路径匹配（去掉前导斜杠）
+						if !match {
+							relativeFileDir := strings.TrimPrefix(fileDir, "/")
+							dirMatch, _ = filepath.Match(patternDir, relativeFileDir)
+							if dirMatch {
+								match, _ = filepath.Match(patternBase, fileBase)
+							}
+						}
+
+						// 3. 直接匹配路径的最后一部分
+						if !match {
+							fileDirLastPart := filepath.Base(fileDir)
+							dirMatch, _ = filepath.Match(patternDir, fileDirLastPart)
+							if dirMatch {
+								match, _ = filepath.Match(patternBase, fileBase)
+							}
 						}
 					}
+
+					// 尝试4: 递归匹配（如果模式是 *.md 或 *.markdown）
+					if !match && !containsSlash {
+						// 模式不包含斜杠，且是 *.md 或 *.markdown，匹配所有目录下的对应文件
+						match, _ = filepath.Match(wildcardPattern, node.Name)
+					}
+
+					// 尝试5: 支持 ** 通配符（递归目录匹配）
+					if !match && strings.Contains(wildcardPattern, "**") {
+						// 简单处理 ** 通配符：替换为 * 并尝试匹配文件名
+						simplePattern := strings.ReplaceAll(wildcardPattern, "**", "*")
+						match, _ = filepath.Match(simplePattern, node.Name)
+					}
+
+					// 如果匹配了当前 pattern，设置标记并跳出循环
+					if match {
+						matchedAny = true
+						break
+					}
 				}
 
-				// 尝试4: 递归匹配（如果模式是 *.md 或 *.markdown）
-				if !match && !containsSlash {
-					// 模式不包含斜杠，且是 *.md 或 *.markdown，匹配所有目录下的对应文件
-					match, _ = filepath.Match(wildcardPattern, node.Name)
-				}
-
-				// 尝试5: 支持 ** 通配符（递归目录匹配）
-				if !match && strings.Contains(wildcardPattern, "**") {
-					// 简单处理 ** 通配符：替换为 * 并尝试匹配文件名
-					simplePattern := strings.ReplaceAll(wildcardPattern, "**", "*")
-					match, _ = filepath.Match(simplePattern, node.Name)
-				}
-
-				// 如果都不匹配，跳过该文件
-				if !match {
+				// 如果所有 pattern 都不匹配，跳过该文件
+				if !matchedAny {
 					return nil
 				}
 			}
@@ -1001,5 +1064,294 @@ func openBrowser(url string) {
 	cmd := exec.Command("open", url)
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("无法打开浏览器: %v\n", err)
+	}
+}
+
+// handleWebSocket 处理WebSocket连接
+func handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		InsecureSkipVerify: true,
+		OriginPatterns:     []string{"*"},
+	})
+	if err != nil {
+		log.Printf("WebSocket连接失败: %v", err)
+		return
+	}
+
+	// 注册客户端
+	wsClientsMutex.Lock()
+	wsClients[conn] = true
+	clientCount := len(wsClients)
+	wsClientsMutex.Unlock()
+
+	fmt.Printf("✓ WebSocket 客户端已连接 (当前连接数: %d)\n", clientCount)
+
+	// 发送欢迎消息
+	ctx := context.Background()
+	conn.Write(ctx, websocket.MessageText, []byte(`{"type":"connected","message":"实时更新已启用"}`))
+
+	// 保持连接，等待关闭
+	defer func() {
+		wsClientsMutex.Lock()
+		delete(wsClients, conn)
+		remaining := len(wsClients)
+		wsClientsMutex.Unlock()
+		conn.Close(websocket.StatusNormalClosure, "")
+		fmt.Printf("✗ WebSocket 客户端已断开 (剩余连接数: %d)\n", remaining)
+	}()
+
+	// 读取循环（保持连接活跃）
+	for {
+		_, _, err := conn.Read(ctx)
+		if err != nil {
+			break
+		}
+	}
+}
+
+// broadcastReload 向所有WebSocket客户端广播重载消息
+func broadcastReload(message string) {
+	wsClientsMutex.Lock()
+	defer wsClientsMutex.Unlock()
+
+	payload := fmt.Sprintf(`{"type":"reload","message":"%s"}`, message)
+	ctx := context.Background()
+
+	for conn := range wsClients {
+		err := conn.Write(ctx, websocket.MessageText, []byte(payload))
+		if err != nil {
+			log.Printf("发送WebSocket消息失败: %v", err)
+		}
+	}
+
+	if len(wsClients) > 0 {
+		fmt.Printf("📢 已通知 %d 个客户端刷新: %s\n", len(wsClients), message)
+	}
+}
+
+// closeAllWebSocketClients 关闭所有WebSocket客户端
+func closeAllWebSocketClients() {
+	wsClientsMutex.Lock()
+	defer wsClientsMutex.Unlock()
+
+	for conn := range wsClients {
+		conn.Close(websocket.StatusNormalClosure, "服务器关闭")
+	}
+	wsClients = make(map[*websocket.Conn]bool)
+}
+
+// initFileWatcher 初始化文件监控
+func initFileWatcher() error {
+	watcherMutex.Lock()
+	defer watcherMutex.Unlock()
+
+	// 如果已经有watcher，先关闭
+	if fileWatcher != nil {
+		fileWatcher.Close()
+	}
+
+	// 创建新的watcher
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("创建文件监控失败: %v", err)
+	}
+	fileWatcher = watcher
+
+	// 获取当前工作目录
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("获取当前目录失败: %v", err)
+	}
+
+	// 获取需要监控的目录列表
+	dirsToWatch := make(map[string]bool)
+
+	// 构建项目树
+	proj, err := project.BuildProjectTree(currentDir, helper.WalkDirOptions{})
+	if err != nil {
+		return fmt.Errorf("构建项目树失败: %v", err)
+	}
+
+	// 遍历项目，找到所有包含markdown文件的目录
+	proj.Visit(func(path string, node *project.Node, depth int) error {
+		if !node.IsDir && strings.HasSuffix(strings.ToLower(node.Name), ".md") {
+			// 检查是否匹配任一 pattern
+			if len(markdownPatterns) > 0 {
+				matchedAny := false
+				for _, pattern := range markdownPatterns {
+					if matchesPattern(path, node.Name, pattern) {
+						matchedAny = true
+						break
+					}
+				}
+				if !matchedAny {
+					return nil
+				}
+			}
+			// 添加文件所在目录到监控列表
+			dir := filepath.Dir(node.Path)
+			dirsToWatch[dir] = true
+		}
+		return nil
+	})
+
+	// 如果没有指定pattern，监控整个项目
+	if len(markdownPatterns) == 0 {
+		dirsToWatch[currentDir] = true
+		// 递归添加所有子目录
+		filepath.Walk(currentDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			if info.IsDir() {
+				// 跳过常见的不需要监控的目录
+				name := info.Name()
+				if name == ".git" || name == "node_modules" || name == "vendor" || strings.HasPrefix(name, ".") {
+					return filepath.SkipDir
+				}
+				dirsToWatch[path] = true
+			}
+			return nil
+		})
+	}
+
+	// 添加目录到监控
+	watchedCount := 0
+	for dir := range dirsToWatch {
+		if err := watcher.Add(dir); err != nil {
+			log.Printf("警告: 无法监控目录 %s: %v", dir, err)
+		} else {
+			watchedCount++
+		}
+	}
+
+	fmt.Printf("✓ 正在监控 %d 个目录\n", watchedCount)
+
+	// 启动监控goroutine
+	go watchFileChanges()
+
+	return nil
+}
+
+// matchesPattern 检查文件是否匹配pattern
+func matchesPattern(path, name, pattern string) bool {
+	containsSlash := strings.Contains(pattern, "/")
+
+	// 尝试1: 完整路径匹配
+	if match, _ := filepath.Match(pattern, path); match {
+		return true
+	}
+
+	// 尝试2: 文件名匹配
+	if match, _ := filepath.Match(pattern, name); match {
+		return true
+	}
+
+	// 尝试3: 相对目录匹配
+	if containsSlash {
+		fileDir := filepath.Dir(path)
+		fileBase := filepath.Base(path)
+		patternDir := filepath.Dir(pattern)
+		patternBase := filepath.Base(pattern)
+
+		if dirMatch, _ := filepath.Match(patternDir, fileDir); dirMatch {
+			if match, _ := filepath.Match(patternBase, fileBase); match {
+				return true
+			}
+		}
+	}
+
+	// 尝试4: 支持 ** 通配符
+	if strings.Contains(pattern, "**") {
+		simplePattern := strings.ReplaceAll(pattern, "**", "*")
+		if match, _ := filepath.Match(simplePattern, name); match {
+			return true
+		}
+	}
+
+	return false
+}
+
+// watchFileChanges 监控文件变化
+func watchFileChanges() {
+	debounceTimer := make(map[string]*time.Timer)
+	debounceMutex := sync.Mutex{}
+
+	for {
+		watcherMutex.Lock()
+		watcher := fileWatcher
+		watcherMutex.Unlock()
+
+		if watcher == nil {
+			return
+		}
+
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+
+			// 只处理markdown文件
+			if !strings.HasSuffix(strings.ToLower(event.Name), ".md") {
+				continue
+			}
+
+			// 如果指定了pattern，检查是否匹配任一 pattern
+			if len(markdownPatterns) > 0 {
+				fileName := filepath.Base(event.Name)
+				matchedAny := false
+				for _, pattern := range markdownPatterns {
+					if matchesPattern(event.Name, fileName, pattern) {
+						matchedAny = true
+						break
+					}
+				}
+				if !matchedAny {
+					continue
+				}
+			}
+
+			// 处理写入和创建事件
+			if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create {
+				// 使用防抖动，避免频繁刷新
+				debounceMutex.Lock()
+				if timer, exists := debounceTimer[event.Name]; exists {
+					timer.Stop()
+				}
+				debounceTimer[event.Name] = time.AfterFunc(300*time.Millisecond, func() {
+					fileName := filepath.Base(event.Name)
+					action := "已更新"
+					if event.Op&fsnotify.Create == fsnotify.Create {
+						action = "已创建"
+					}
+					fmt.Printf("📝 文件%s: %s\n", action, fileName)
+					broadcastReload(fmt.Sprintf("文件%s: %s", action, fileName))
+
+					debounceMutex.Lock()
+					delete(debounceTimer, event.Name)
+					debounceMutex.Unlock()
+				})
+				debounceMutex.Unlock()
+			}
+
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			log.Printf("文件监控错误: %v", err)
+		}
+	}
+}
+
+// cleanupFileWatcher 清理文件监控
+func cleanupFileWatcher() {
+	watcherMutex.Lock()
+	defer watcherMutex.Unlock()
+
+	if fileWatcher != nil {
+		fileWatcher.Close()
+		fileWatcher = nil
+		fmt.Println("✓ 文件监控已停止")
 	}
 }
