@@ -30,6 +30,7 @@ var (
 	// 添加新的全局变量来存储传入的markdown内容
 	markdownContent string
 	showContentOnly bool
+	markdownPattern string
 )
 
 // MarkdownCommand markdown子命令
@@ -47,6 +48,7 @@ func init() {
 	// 添加新的命令行参数
 	MarkdownCommand.Flags().StringVarP(&markdownContent, "content", "c", "", "直接提供Markdown内容而不是从文件加载")
 	MarkdownCommand.Flags().BoolVarP(&showContentOnly, "content-only", "", false, "仅显示提供的Markdown内容，不显示其他文件列表")
+	MarkdownCommand.Flags().StringVarP(&markdownPattern, "pattern", "f", "", "使用blob匹配模式筛选Markdown文件，例如: *.md, docs/*.md")
 }
 
 // runMarkdownServer 启动markdown服务器
@@ -474,7 +476,89 @@ func getMarkdownFiles(proj *project.Project) ([]MarkdownFile, error) {
 	var markdownFiles []MarkdownFile
 
 	err := proj.Visit(func(path string, node *project.Node, depth int) error {
+		// 检查是否是markdown文件
 		if !node.IsDir && strings.HasSuffix(strings.ToLower(node.Name), ".md") {
+			// 如果指定了模式，检查文件是否匹配
+			if markdownPattern != "" {
+				// 使用filepath.Match进行blob匹配
+				// 支持多种匹配方式：
+				// 1. 完整路径匹配：path（如 docs/file.md）
+				// 2. 文件名匹配：node.Name（如 file.md）
+				// 3. 相对目录匹配：如果模式包含/，则匹配相对路径
+				// 4. 递归目录匹配：*.md 匹配所有目录下的md文件
+
+				// 检查模式是否包含路径分隔符
+				containsSlash := strings.Contains(markdownPattern, "/")
+
+				// 处理递归目录匹配：*.md 匹配所有目录下的md文件
+				wildcardPattern := markdownPattern
+
+				// 初始化匹配结果
+				match := false
+
+				// 尝试1: 完整路径匹配（如 docs/file.md）
+				match, _ = filepath.Match(wildcardPattern, path)
+
+				// 尝试2: 文件名匹配（如 file.md）
+				if !match {
+					match, _ = filepath.Match(wildcardPattern, node.Name)
+				}
+
+				// 尝试3: 相对目录匹配（如果模式包含斜杠）
+				if !match && containsSlash {
+					// 提取当前文件的目录路径和文件名
+					fileDir := filepath.Dir(path)
+					fileBase := filepath.Base(path)
+
+					// 获取模式的目录部分和文件名部分
+					patternDir := filepath.Dir(wildcardPattern)
+					patternBase := filepath.Base(wildcardPattern)
+
+					// 尝试多种目录匹配方式：
+					// 1. 完整路径匹配
+					dirMatch, _ := filepath.Match(patternDir, fileDir)
+					if dirMatch {
+						match, _ = filepath.Match(patternBase, fileBase)
+					}
+
+					// 2. 相对路径匹配（去掉前导斜杠）
+					if !match {
+						relativeFileDir := strings.TrimPrefix(fileDir, "/")
+						dirMatch, _ = filepath.Match(patternDir, relativeFileDir)
+						if dirMatch {
+							match, _ = filepath.Match(patternBase, fileBase)
+						}
+					}
+
+					// 3. 直接匹配路径的最后一部分
+					if !match {
+						fileDirLastPart := filepath.Base(fileDir)
+						dirMatch, _ = filepath.Match(patternDir, fileDirLastPart)
+						if dirMatch {
+							match, _ = filepath.Match(patternBase, fileBase)
+						}
+					}
+				}
+
+				// 尝试4: 递归匹配（如果模式是 *.md 或 *.markdown）
+				if !match && !containsSlash {
+					// 模式不包含斜杠，且是 *.md 或 *.markdown，匹配所有目录下的对应文件
+					match, _ = filepath.Match(wildcardPattern, node.Name)
+				}
+
+				// 尝试5: 支持 ** 通配符（递归目录匹配）
+				if !match && strings.Contains(wildcardPattern, "**") {
+					// 简单处理 ** 通配符：替换为 * 并尝试匹配文件名
+					simplePattern := strings.ReplaceAll(wildcardPattern, "**", "*")
+					match, _ = filepath.Match(simplePattern, node.Name)
+				}
+
+				// 如果都不匹配，跳过该文件
+				if !match {
+					return nil
+				}
+			}
+
 			file := MarkdownFile{
 				Path:         node.Path,
 				Name:         node.Name,
@@ -776,13 +860,6 @@ func handleMarkdownContent(w http.ResponseWriter, r *http.Request) {
 	// 将本地图片引用转换为 /images/ 路径
 	processedContent = convertLocalImagesToServerPath(processedContent, "./")
 
-	// 从 embed 文件系统加载模板
-	tmplContent, err := templateFS.ReadFile("templates/view.html")
-	if err != nil {
-		http.Error(w, fmt.Sprintf("模板文件读取失败: %v", err), http.StatusInternalServerError)
-		return
-	}
-
 	// 准备数据
 	var markdownFiles []MarkdownFile
 	if !showContentOnly {
@@ -791,6 +868,13 @@ func handleMarkdownContent(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			markdownFiles, _ = getMarkdownFiles(proj)
 		}
+	}
+
+	// 从 embed 文件系统加载模板
+	tmplContent, err := templateFS.ReadFile("templates/view.html")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("模板文件读取失败: %v", err), http.StatusInternalServerError)
+		return
 	}
 
 	tmpl := template.Must(template.New("view").Parse(string(tmplContent)))
