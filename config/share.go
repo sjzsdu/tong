@@ -20,6 +20,9 @@ const (
 	KeyGoogleSearchEngineID = "google_search_engine_id"
 	KeyBingAPIKey           = "bing_api_key"
 	KeyBaiduAPIKey          = "baidu_api_key"
+	KeyDsyncFullDir         = "dsync_full_dir"
+	KeyDsyncCurrentDir      = "dsync_current_dir"
+	KeyDsyncConfigFile      = "dsync_config_file"
 )
 
 // ConfigKeys 存储所有配置键及其信息
@@ -78,6 +81,21 @@ var ConfigKeys = map[string]ConfigKeyInfo{
 		Description: "Set Baidu API key for web search",
 		Options:     []string{},
 		Type:        "secret",
+	},
+	KeyDsyncFullDir: {
+		Description: "Set dsync source directory path",
+		Options:     []string{},
+		Type:        "string",
+	},
+	KeyDsyncCurrentDir: {
+		Description: "Set dsync target directory path",
+		Options:     []string{},
+		Type:        "string",
+	},
+	KeyDsyncConfigFile: {
+		Description: "Set dsync config file name",
+		Options:     []string{},
+		Type:        "string",
 	},
 }
 
