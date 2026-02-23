@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/stretchr/testify/assert/yaml"
 )
 
 // DirMap 嵌套 map 类型别名
@@ -19,10 +21,10 @@ type DirMap = map[string]interface{}
 // 包含一个大 map（Data）以及元信息，用于区分哪些 key 是目录、哪些是文件、
 // 哪些是 configFile 中的配置项。这样从 map 写回目录时能正确还原。
 type DirData struct {
-	Data       DirMap            // 大 map
-	DirKeys    map[string]bool   // 顶层中哪些 key 来自子目录
-	FileKeys   map[string]bool   // 顶层中哪些 key 来自独立文件（非 configFile）
-	ConfigFile string            // 配置文件名（如 "opencode.json"）
+	Data       DirMap          // 大 map
+	DirKeys    map[string]bool // 顶层中哪些 key 来自子目录
+	FileKeys   map[string]bool // 顶层中哪些 key 来自独立文件（非 configFile）
+	ConfigFile string          // 配置文件名（如 "opencode.json"）
 }
 
 // NewEmptyDirData 创建一个空的 DirData
@@ -68,7 +70,7 @@ func BuildDirData(dirPath string, configFile string) (*DirData, error) {
 
 	for _, entry := range entries {
 		name := entry.Name()
-		if name == configFile {
+		if name == configFile || isExcludedDir(name) {
 			continue
 		}
 
@@ -86,12 +88,72 @@ func BuildDirData(dirPath string, configFile string) (*DirData, error) {
 			if err != nil {
 				continue
 			}
-			dd.Data[name] = string(content)
+			fileContent := string(content)
+			// 检查并解析 frontmatter
+			if description := extractFrontmatterDescription(fileContent); description != "" {
+				dd.Data[name] = description
+			} else {
+				dd.Data[name] = fileContent
+			}
 			dd.FileKeys[name] = true
 		}
 	}
 
 	return dd, nil
+}
+
+// isExcludedDir 检查是否为需要排除的目录
+func isExcludedDir(name string) bool {
+	excludedDirs := map[string]bool{
+		".git": true,
+	}
+	return excludedDirs[name]
+}
+
+// extractFrontmatterDescription 从文件内容中提取 frontmatter 中的 description 字段
+func extractFrontmatterDescription(content string) string {
+	// 检查是否包含 frontmatter
+	lines := strings.Split(content, "\n")
+	if len(lines) < 3 {
+		return ""
+	}
+
+	// 检查开始标记
+	if strings.TrimSpace(lines[0]) != "---" {
+		return ""
+	}
+
+	// 找到结束标记
+	endIndex := -1
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == "---" {
+			endIndex = i
+			break
+		}
+	}
+
+	if endIndex == -1 {
+		return ""
+	}
+
+	// 提取 frontmatter 部分
+	frontmatterLines := lines[1:endIndex]
+	frontmatter := strings.Join(frontmatterLines, "\n")
+
+	// 解析 YAML
+	var data map[string]interface{}
+	if err := yaml.Unmarshal([]byte(frontmatter), &data); err != nil {
+		return ""
+	}
+
+	// 提取 description 字段
+	if description, ok := data["description"]; ok {
+		if descStr, ok := description.(string); ok {
+			return strings.TrimSpace(descStr)
+		}
+	}
+
+	return ""
 }
 
 // buildSubMap 递归构建子目录的 map
@@ -105,6 +167,9 @@ func buildSubMap(dirPath string) (map[string]interface{}, error) {
 
 	for _, entry := range entries {
 		name := entry.Name()
+		if isExcludedDir(name) {
+			continue
+		}
 		fullPath := filepath.Join(dirPath, name)
 
 		if entry.IsDir() {
@@ -118,7 +183,13 @@ func buildSubMap(dirPath string) (map[string]interface{}, error) {
 			if err != nil {
 				continue
 			}
-			result[name] = string(content)
+			fileContent := string(content)
+			// 检查并解析 frontmatter
+			if description := extractFrontmatterDescription(fileContent); description != "" {
+				result[name] = description
+			} else {
+				result[name] = fileContent
+			}
 		}
 	}
 
@@ -480,14 +551,17 @@ func displayFlat(sb *strings.Builder, data map[string]interface{}, prefix string
 }
 
 func displayValue(sb *strings.Builder, fullKey string, value interface{}, depth int, maxDepth int, maxLen int) {
+	// 为每个记录添加固定的缩进
+	recordIndent := "  " // 两个空格的缩进
+
 	switch v := value.(type) {
 	case map[string]interface{}:
 		if maxDepth > 0 && depth >= maxDepth {
 			childKeys := sortedKeys(v)
 			if len(childKeys) == 0 {
-				sb.WriteString(fmt.Sprintf("%s: (empty)\n", fullKey))
+				sb.WriteString(fmt.Sprintf("%s%s: (empty)\n", recordIndent, fullKey))
 			} else {
-				sb.WriteString(fmt.Sprintf("%s: {%s}\n", fullKey, strings.Join(childKeys, ", ")))
+				sb.WriteString(fmt.Sprintf("%s%s: {%s}\n", recordIndent, fullKey, strings.Join(childKeys, ", ")))
 			}
 		} else {
 			displayFlat(sb, v, fullKey, depth+1, maxDepth, maxLen)
@@ -499,21 +573,21 @@ func displayValue(sb *strings.Builder, fullKey string, value interface{}, depth 
 		if maxLen > 0 && len(display) > maxLen {
 			display = display[:maxLen] + "..."
 		}
-		sb.WriteString(fmt.Sprintf("%s: %s\n", fullKey, display))
+		sb.WriteString(fmt.Sprintf("%s%s: %s\n", recordIndent, fullKey, display))
 	case string:
 		display := strings.TrimSpace(v)
 		display = strings.ReplaceAll(display, "\n", " ")
 		if maxLen > 0 && len(display) > maxLen {
 			display = display[:maxLen] + "..."
 		}
-		sb.WriteString(fmt.Sprintf("%s: %s\n", fullKey, display))
+		sb.WriteString(fmt.Sprintf("%s%s: %s\n", recordIndent, fullKey, display))
 	default:
 		b, _ := json.Marshal(v)
 		display := string(b)
 		if maxLen > 0 && len(display) > maxLen {
 			display = display[:maxLen] + "..."
 		}
-		sb.WriteString(fmt.Sprintf("%s: %s\n", fullKey, display))
+		sb.WriteString(fmt.Sprintf("%s%s: %s\n", recordIndent, fullKey, display))
 	}
 }
 
