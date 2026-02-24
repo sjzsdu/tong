@@ -542,6 +542,7 @@ func getMarkdownFiles(proj *project.Project) ([]MarkdownFile, error) {
 					// 2. 文件名匹配：node.Name（如 file.md）
 					// 3. 相对目录匹配：如果模式包含/，则匹配相对路径
 					// 4. 递归目录匹配：*.md 匹配所有目录下的md文件
+					// 5. 目录参数：如果模式是目录，则匹配该目录及其子目录中的所有md文件
 
 					// 检查模式是否包含路径分隔符
 					containsSlash := strings.Contains(markdownPattern, "/")
@@ -607,6 +608,18 @@ func getMarkdownFiles(proj *project.Project) ([]MarkdownFile, error) {
 						// 简单处理 ** 通配符：替换为 * 并尝试匹配文件名
 						simplePattern := strings.ReplaceAll(wildcardPattern, "**", "*")
 						match, _ = filepath.Match(simplePattern, node.Name)
+					}
+
+					// 尝试6: 目录参数匹配（如果模式是目录，则匹配该目录及其子目录中的所有md文件）
+					if !match {
+						// 检查模式是否是目录
+						if isDir, _ := isDirectory(markdownPattern); isDir {
+							// 检查文件是否在该目录或其子目录中
+							relativePath := strings.TrimPrefix(path, "/")
+							if strings.HasPrefix(relativePath, markdownPattern) {
+								match = true
+							}
+						}
 					}
 
 					// 如果匹配了当前 pattern，设置标记并跳出循环
@@ -690,6 +703,15 @@ func getMarkdownFiles(proj *project.Project) ([]MarkdownFile, error) {
 	})
 
 	return markdownFiles, nil
+}
+
+// isDirectory 检查路径是否是目录
+func isDirectory(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false, err
+	}
+	return info.IsDir(), nil
 }
 
 // extractTitleAndDescription 从 Markdown 内容中提取标题和描述
