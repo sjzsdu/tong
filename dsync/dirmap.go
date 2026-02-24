@@ -62,7 +62,14 @@ func BuildDirData(dirPath string, configFile string) (*DirData, error) {
 		}
 	}
 
-	// 2. 遍历目录，填入子目录和其他文件
+	// 2. 读取并解析 .gitignore 文件
+	gitignorePatterns, err := readGitignore(dirPath)
+	if err != nil {
+		// 读取 .gitignore 文件失败，忽略错误，继续执行
+		gitignorePatterns = nil
+	}
+
+	// 3. 遍历目录，填入子目录和其他文件
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
 		return nil, fmt.Errorf("无法读取目录 %s: %w", dirPath, err)
@@ -70,11 +77,16 @@ func BuildDirData(dirPath string, configFile string) (*DirData, error) {
 
 	for _, entry := range entries {
 		name := entry.Name()
-		if name == configFile || isExcludedDir(name) {
+		if name == configFile || name == ".gitignore" || isExcludedDir(name) {
 			continue
 		}
 
 		fullPath := filepath.Join(dirPath, name)
+
+		// 检查是否应该被 .gitignore 忽略
+		if gitignorePatterns != nil && shouldIgnore(fullPath, gitignorePatterns) {
+			continue
+		}
 
 		if entry.IsDir() {
 			subMap, err := buildSubMap(fullPath)
@@ -89,12 +101,8 @@ func BuildDirData(dirPath string, configFile string) (*DirData, error) {
 				continue
 			}
 			fileContent := string(content)
-			// 检查并解析 frontmatter
-			if description := extractFrontmatterDescription(fileContent); description != "" {
-				dd.Data[name] = description
-			} else {
-				dd.Data[name] = fileContent
-			}
+			// 始终存储完整内容，以便 sync 操作能同步全部内容
+			dd.Data[name] = fileContent
 			dd.FileKeys[name] = true
 		}
 	}
@@ -108,6 +116,57 @@ func isExcludedDir(name string) bool {
 		".git": true,
 	}
 	return excludedDirs[name]
+}
+
+// readGitignore 读取并解析 .gitignore 文件，返回需要忽略的路径列表
+func readGitignore(dirPath string) ([]string, error) {
+	gitignorePath := filepath.Join(dirPath, ".gitignore")
+	content, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // .gitignore 文件不存在，返回空列表
+		}
+		return nil, err
+	}
+
+	lines := strings.Split(string(content), "\n")
+	var patterns []string
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		// 跳过空行和注释行
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		// 跳过以 ! 开头的否定模式（暂不支持）
+		if strings.HasPrefix(line, "!") {
+			continue
+		}
+		patterns = append(patterns, line)
+	}
+
+	return patterns, nil
+}
+
+// shouldIgnore 检查路径是否应该被忽略
+func shouldIgnore(path string, patterns []string) bool {
+	baseName := filepath.Base(path)
+
+	for _, pattern := range patterns {
+		// 简单的模式匹配（支持 * 通配符）
+		if matched, _ := filepath.Match(pattern, baseName); matched {
+			return true
+		}
+		// 检查目录模式
+		if strings.HasSuffix(pattern, "/") {
+			dirPattern := strings.TrimSuffix(pattern, "/")
+			if matched, _ := filepath.Match(dirPattern, baseName); matched {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // extractFrontmatterDescription 从文件内容中提取 frontmatter 中的 description 字段
@@ -165,12 +224,24 @@ func buildSubMap(dirPath string) (map[string]interface{}, error) {
 		return nil, fmt.Errorf("无法读取目录 %s: %w", dirPath, err)
 	}
 
+	// 读取并解析当前目录的 .gitignore 文件
+	gitignorePatterns, err := readGitignore(dirPath)
+	if err != nil {
+		// 读取 .gitignore 文件失败，忽略错误，继续执行
+		gitignorePatterns = nil
+	}
+
 	for _, entry := range entries {
 		name := entry.Name()
-		if isExcludedDir(name) {
+		if name == ".gitignore" || isExcludedDir(name) {
 			continue
 		}
 		fullPath := filepath.Join(dirPath, name)
+
+		// 检查是否应该被 .gitignore 忽略
+		if gitignorePatterns != nil && shouldIgnore(fullPath, gitignorePatterns) {
+			continue
+		}
 
 		if entry.IsDir() {
 			subMap, err := buildSubMap(fullPath)
@@ -184,12 +255,8 @@ func buildSubMap(dirPath string) (map[string]interface{}, error) {
 				continue
 			}
 			fileContent := string(content)
-			// 检查并解析 frontmatter
-			if description := extractFrontmatterDescription(fileContent); description != "" {
-				result[name] = description
-			} else {
-				result[name] = fileContent
-			}
+			// 始终存储完整内容，以便 sync 操作能同步全部内容
+			result[name] = fileContent
 		}
 	}
 
@@ -576,6 +643,10 @@ func displayValue(sb *strings.Builder, fullKey string, value interface{}, depth 
 		sb.WriteString(fmt.Sprintf("%s%s: %s\n", recordIndent, fullKey, display))
 	case string:
 		display := strings.TrimSpace(v)
+		// 检查并解析 frontmatter，如果存在 description 则使用它
+		if description := extractFrontmatterDescription(display); description != "" {
+			display = description
+		}
 		display = strings.ReplaceAll(display, "\n", " ")
 		if maxLen > 0 && len(display) > maxLen {
 			display = display[:maxLen] + "..."
