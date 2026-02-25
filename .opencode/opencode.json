@@ -1,5 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "autoupdate": true,
   "mcp": {
     "chrome-devtools": {
       "command": [
@@ -8,8 +9,25 @@
         "chrome-devtools-mcp@latest"
       ],
       "type": "local"
+    },
+    "git-mcp-server": {
+      "command": [
+        "npx",
+        "-y",
+        "@cyanheads/git-mcp-server@latest"
+      ],
+      "enabled": true,
+      "environment": {
+        "MCP_TRANSPORT_TYPE": "stdio"
+      },
+      "type": "local"
     }
   },
-  "model": "aihubmix/coding-minimax-m2.1-free",
+  "model": "opencode/minimax-m2.5-free",
+  "plugin": [
+    "oh-my-opencode@latest",
+    "opencode-google-antigravity-auth",
+    "opencode-supermemory"
+  ],
   "theme": "opencode"
 }

@@ -47,3 +47,4 @@ tmp/
 __debug**
 tong
 # docs  <- remove this line
+.opencode/

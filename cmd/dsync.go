@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/sjzsdu/tong/config"
 	"github.com/sjzsdu/tong/dsync"
@@ -220,6 +221,11 @@ func handleDsyncSyncCommand(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	// 检查当前目录是否是 git 项目，如果是，在 .gitignore 文件中添加 target 目录
+	if isGitRepository(".") {
+		updateGitignoreForTargetDir(".", currentDir)
+	}
+
 	fmt.Println(lang.T("Sync completed!"))
 }
 
@@ -320,4 +326,66 @@ func handleDsyncConfigCommand(cmd *cobra.Command, args []string) {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
+}
+
+// isGitRepository 检查指定目录是否是 git 仓库
+func isGitRepository(dir string) bool {
+	gitDir := filepath.Join(dir, ".git")
+	info, err := os.Stat(gitDir)
+	return err == nil && info.IsDir()
+}
+
+// updateGitignoreForTargetDir 在 .gitignore 文件中添加 target 目录
+func updateGitignoreForTargetDir(dir string, targetDir string) {
+	gitignorePath := filepath.Join(dir, ".gitignore")
+
+	// 获取 targetDir 的相对路径
+	targetDirRel, err := filepath.Rel(dir, targetDir)
+	if err != nil {
+		// 如果无法获取相对路径，使用绝对路径
+		targetDirRel = targetDir
+	}
+
+	// 确保路径以 / 结尾
+	if !strings.HasSuffix(targetDirRel, "/") {
+		targetDirRel += "/"
+	}
+
+	// 读取 .gitignore 文件内容
+	content, err := os.ReadFile(gitignorePath)
+	var lines []string
+	if err == nil {
+		lines = strings.Split(string(content), "\n")
+	} else if os.IsNotExist(err) {
+		// 如果 .gitignore 文件不存在，创建一个新的
+		lines = []string{}
+	} else {
+		// 其他错误，跳过
+		return
+	}
+
+	// 检查是否已经包含 target 目录
+	targetEntry := targetDirRel
+	hasTarget := false
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+		if trimmedLine == targetEntry {
+			hasTarget = true
+			break
+		}
+	}
+
+	// 如果没有包含 target 目录，添加它
+	if !hasTarget {
+		// 在文件末尾添加 target 目录
+		lines = append(lines, "", targetEntry)
+
+		// 写回 .gitignore 文件
+		updatedContent := strings.Join(lines, "\n")
+		if err := os.WriteFile(gitignorePath, []byte(updatedContent), 0644); err != nil {
+			fmt.Printf(lang.T("Error updating .gitignore: %v\n"), err)
+		} else {
+			fmt.Printf(lang.T("Added %s to .gitignore\n"), targetEntry)
+		}
+	}
 }
