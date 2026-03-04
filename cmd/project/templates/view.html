@@ -208,7 +208,7 @@
             padding: 8px 12px;
             cursor: pointer;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            z-index: 900;
+            z-index: 9999;
             display: flex;
             align-items: center;
             gap: 6px;
@@ -233,6 +233,135 @@
         .sidebar-toggle.right {
             right: 1rem;
             bottom: 2rem;
+        }
+        
+        /* 遮罩层 */
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9998;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        
+        .sidebar-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* 弹窗预览 */
+        .sidebar-popup {
+            position: fixed;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            z-index: 10001;
+            max-width: 320px;
+            max-height: 70vh;
+            overflow: hidden;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(10px);
+            transition: all 0.2s ease;
+        }
+        
+        .sidebar-popup.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        
+        .sidebar-popup.left {
+            left: 1rem;
+            bottom: 5rem;
+        }
+        
+        .sidebar-popup.right {
+            right: 1rem;
+            bottom: 5rem;
+        }
+        
+        .sidebar-popup-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .sidebar-popup-content {
+            padding: 8px 0;
+            overflow-y: auto;
+            max-height: 60vh;
+        }
+        
+        .sidebar-popup-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            border-left: 3px solid transparent;
+        }
+        
+        .sidebar-popup-item:hover {
+            background: #f3f4f6;
+            border-left-color: #3b82f6;
+        }
+        
+        .sidebar-popup-item.active {
+            background: #eff6ff;
+            border-left-color: #3b82f6;
+            color: #3b82f6;
+            font-weight: 500;
+        }
+        
+        .sidebar-popup-item-title {
+            font-size: 13px;
+            color: #374151;
+            margin-bottom: 2px;
+        }
+        
+        .sidebar-popup-item-desc {
+            font-size: 11px;
+            color: #9ca3af;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        /* 移动设备弹窗样式调整 */
+        @media (max-width: 640px) {
+            .sidebar-popup {
+                max-width: 280px;
+                bottom: 4rem;
+            }
+            
+            .sidebar-popup.left {
+                left: 0.5rem;
+            }
+            
+            .sidebar-popup.right {
+                right: 0.5rem;
+            }
+        }
+        
+        /* 大屏幕隐藏弹窗功能 */
+        @media (min-width: 1025px) {
+            .sidebar-popup {
+                display: none !important;
+            }
+        }
+        
+        /* 小屏幕显示弹窗 */
+        @media (max-width: 1024px) {
+            .sidebar-popup {
+                display: block;
+            }
         }
         
         .files-title {
@@ -304,7 +433,7 @@
         }
         
         /* 响应式设计 - 小屏幕默认隐藏侧边栏 */
-        @media (max-width: 1600px) {
+        @media (max-width: 1024px) {
             .toc-sidebar:not(.show-mobile) {
                 position: fixed;
                 right: -300px;
@@ -312,6 +441,7 @@
                 height: calc(100vh - 80px);
                 transition: right 0.3s ease;
                 box-shadow: -4px 0 12px rgba(0, 0, 0, 0.1);
+                z-index: 10000;
             }
             .toc-sidebar.show-mobile {
                 right: 0;
@@ -321,7 +451,7 @@
             }
         }
         
-        @media (max-width: 1280px) {
+        @media (max-width: 768px) {
             .files-sidebar:not(.show-mobile) {
                 position: fixed;
                 left: -300px;
@@ -329,6 +459,7 @@
                 height: calc(100vh - 80px);
                 transition: left 0.3s ease;
                 box-shadow: 4px 0 12px rgba(0, 0, 0, 0.1);
+                z-index: 10000;
             }
             .files-sidebar.show-mobile {
                 left: 0;
@@ -338,21 +469,35 @@
             }
         }
         
-        @media (min-width: 1601px) {
+        @media (min-width: 1025px) {
             .sidebar-toggle.right {
                 display: none;
             }
         }
         
-        @media (min-width: 1281px) {
+        @media (min-width: 769px) {
             .sidebar-toggle.left {
                 display: none;
             }
         }
         
-        @media (max-width: 768px) {
+        @media (max-width: 640px) {
             .layout-container {
                 padding-top: 120px;
+            }
+            
+            .sidebar-toggle {
+                padding: 6px 10px;
+                font-size: 12px;
+                bottom: 1rem;
+            }
+            
+            .sidebar-toggle.left {
+                left: 0.5rem;
+            }
+            
+            .sidebar-toggle.right {
+                right: 0.5rem;
             }
         }
         
@@ -572,6 +717,25 @@
         </div>
     </header>
     
+    <!-- 遮罩层 -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+    
+    <!-- 文档列表弹窗 -->
+    <div class="sidebar-popup left" id="files-popup">
+        <div class="sidebar-popup-header">📂 文档列表</div>
+        <div class="sidebar-popup-content" id="files-popup-content">
+            <!-- 动态生成文档列表 -->
+        </div>
+    </div>
+    
+    <!-- 目录弹窗 -->
+    <div class="sidebar-popup right" id="toc-popup">
+        <div class="sidebar-popup-header">📑 文档目录</div>
+        <div class="sidebar-popup-content" id="toc-popup-content">
+            <!-- 动态生成目录 -->
+        </div>
+    </div>
+    
     <!-- 侧边栏切换按钮 -->
     <button class="sidebar-toggle left" id="files-toggle" title="切换文档列表">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -767,6 +931,123 @@
         // 存储所有图表的 pan-zoom 实例和初始状态
         const chartInstances = new Map();
         
+        // 全局变量和函数
+        let filesToggle, filesSidebar, tocToggle, tocSidebar, sidebarOverlay, filesPopup, tocPopup, filesPopupContent, tocPopupContent;
+        let popupTimeout = null;
+        
+        function updateOverlay() {
+            const filesOpen = filesSidebar && filesSidebar.classList.contains('show-mobile');
+            const tocOpen = tocSidebar && tocSidebar.classList.contains('show-mobile');
+            
+            if (sidebarOverlay) {
+                if (filesOpen || tocOpen) {
+                    sidebarOverlay.classList.add('active');
+                } else {
+                    sidebarOverlay.classList.remove('active');
+                }
+            }
+        }
+        
+        function hideAllPopups() {
+            if (filesPopup) {
+                filesPopup.classList.remove('active');
+            }
+            if (tocPopup) {
+                tocPopup.classList.remove('active');
+            }
+            if (popupTimeout) {
+                clearTimeout(popupTimeout);
+                popupTimeout = null;
+            }
+        }
+        
+        function showFilesPopup() {
+            hideAllPopups();
+            if (filesPopup) {
+                filesPopup.classList.add('active');
+            }
+        }
+        
+        function showTocPopup() {
+            hideAllPopups();
+            if (tocPopup) {
+                tocPopup.classList.add('active');
+            }
+        }
+        
+        function generateFilesPopupContent() {
+            if (!filesPopupContent) return;
+            
+            const fileLinks = document.querySelectorAll('.files-sidebar .file-link');
+            const currentPath = document.getElementById('markdownFilePath')?.value || '';
+            
+            filesPopupContent.innerHTML = '';
+            
+            if (fileLinks.length === 0) {
+                filesPopupContent.innerHTML = '<div class="text-gray-500 text-sm p-4 text-center">暂无文档</div>';
+                return;
+            }
+            
+            fileLinks.forEach(link => {
+                const path = link.getAttribute('href')?.replace('/view', '') || '';
+                const name = link.textContent.trim();
+                const isActive = path === currentPath;
+                
+                const item = document.createElement('div');
+                item.className = `sidebar-popup-item ${isActive ? 'active' : ''}`;
+                
+                const title = document.createElement('div');
+                title.className = 'sidebar-popup-item-title';
+                title.textContent = name;
+                
+                const desc = document.createElement('div');
+                desc.className = 'sidebar-popup-item-desc';
+                desc.textContent = path;
+                
+                item.appendChild(title);
+                item.appendChild(desc);
+                
+                item.addEventListener('click', function() {
+                    window.location.href = link.getAttribute('href');
+                });
+                
+                filesPopupContent.appendChild(item);
+            });
+        }
+        
+        function closeAllSidebars() {
+            if (filesSidebar) {
+                filesSidebar.classList.remove('show-mobile');
+            }
+            if (tocSidebar) {
+                tocSidebar.classList.remove('show-mobile');
+            }
+            hideAllPopups();
+            updateOverlay();
+            
+            if (filesToggle) {
+                const svg = filesToggle.querySelector('svg');
+                const span = filesToggle.querySelector('span');
+                if (svg && span) {
+                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>';
+                    span.textContent = '文档';
+                }
+            }
+            
+            if (tocToggle) {
+                const svg = tocToggle.querySelector('svg');
+                const span = tocToggle.querySelector('span');
+                if (svg && span) {
+                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>';
+                    span.textContent = '目录';
+                }
+            }
+        }
+        
+        function isMobile() {
+            return window.innerWidth <= 1024;
+        }
+        
         // Loading 进度管理
         const loadingOverlay = document.getElementById('loading-overlay');
         const loadingProgress = document.getElementById('loading-progress');
@@ -782,6 +1063,9 @@
             if (loadingOverlay) {
                 setTimeout(() => {
                     loadingOverlay.classList.add('hidden');
+                    
+                    // 初始化弹窗内容
+                    generateFilesPopupContent();
                 }, 300);
             }
         }
@@ -1165,50 +1449,80 @@
             const contentDiv = document.getElementById('content');
             const tocList = document.getElementById('toc-list');
             const tocSidebar = document.querySelector('.toc-sidebar');
+            // tocPopupContent 是全局变量，在 DOMContentLoaded 中初始化
             const headings = contentDiv.querySelectorAll('h1, h2');
             
             if (headings.length === 0) {
                 if (tocSidebar) {
                     tocSidebar.innerHTML = '<div class="text-gray-500 text-sm p-4">📑 文档无标题</div>';
                 }
+                if (tocPopupContent) {
+                    tocPopupContent.innerHTML = '<div class="text-gray-500 text-sm p-4 text-center">📑 文档无标题</div>';
+                }
                 console.log('文档中没有找到标题');
                 return;
             }
             
             tocList.innerHTML = '';
+            if (tocPopupContent) {
+                tocPopupContent.innerHTML = '';
+            }
             
             headings.forEach((heading, index) => {
-                // 为标题添加 ID
                 const id = `heading-${index}`;
                 heading.id = id;
                 
-                // 创建目录项
-                const li = document.createElement('li');
                 const level = heading.tagName.toLowerCase() === 'h2' ? 'level-2' : 'level-1';
+                const title = heading.textContent;
+                
+                // 侧边栏目录项
+                const li = document.createElement('li');
                 li.className = `toc-item ${level}`;
                 
                 const link = document.createElement('a');
                 link.className = 'toc-link';
                 link.href = `#${id}`;
-                link.textContent = heading.textContent;
+                link.textContent = title;
                 link.setAttribute('data-heading-id', id);
                 
-                // 点击跳转（滚动 content-main 容器）
                 link.addEventListener('click', function(e) {
                     e.preventDefault();
                     const target = document.getElementById(id);
                     const contentMain = document.querySelector('.content-main');
                     if (target && contentMain) {
-                        const targetTop = target.offsetTop - 100; // 偏移量
+                        const targetTop = target.offsetTop - 100;
                         contentMain.scrollTo({ top: targetTop, behavior: 'smooth' });
-                        
-                        // 更新活跃状态
                         updateActiveTocItem(id);
                     }
                 });
                 
                 li.appendChild(link);
                 tocList.appendChild(li);
+                
+                // 弹窗目录项
+                if (tocPopupContent) {
+                    const popupItem = document.createElement('div');
+                    popupItem.className = 'sidebar-popup-item';
+                    popupItem.setAttribute('data-heading-id', id);
+                    
+                    const popupTitle = document.createElement('div');
+                    popupTitle.className = 'sidebar-popup-item-title';
+                    popupTitle.textContent = title;
+                    
+                    popupItem.appendChild(popupTitle);
+                    popupItem.addEventListener('click', function() {
+                        const target = document.getElementById(id);
+                        const contentMain = document.querySelector('.content-main');
+                        if (target && contentMain) {
+                            const targetTop = target.offsetTop - 100;
+                            contentMain.scrollTo({ top: targetTop, behavior: 'smooth' });
+                            updateActiveTocItem(id);
+                            hideAllPopups();
+                        }
+                    });
+                    
+                    tocPopupContent.appendChild(popupItem);
+                }
             });
             
             console.log(`生成了 ${headings.length} 个目录项`);
@@ -1249,18 +1563,17 @@
         // 更新目录活跃状态
         function updateActiveTocItem(headingId) {
             const tocLinks = document.querySelectorAll('.toc-link');
+            const popupItems = document.querySelectorAll('.sidebar-popup-item[data-heading-id]');
             const tocSidebar = document.querySelector('.toc-sidebar');
             
             tocLinks.forEach(link => {
                 if (link.getAttribute('data-heading-id') === headingId) {
                     link.classList.add('active');
-                    // 滚动目录到可视区域
                     if (tocSidebar) {
                         const linkTop = link.offsetTop;
                         const sidebarScrollTop = tocSidebar.scrollTop;
                         const sidebarHeight = tocSidebar.clientHeight;
                         
-                        // 如果链接不在可见区域，滚动到可见区域
                         if (linkTop < sidebarScrollTop || linkTop > sidebarScrollTop + sidebarHeight - 100) {
                             tocSidebar.scrollTo({ top: linkTop - 100, behavior: 'smooth' });
                         }
@@ -1269,47 +1582,163 @@
                     link.classList.remove('active');
                 }
             });
+            
+            popupItems.forEach(item => {
+                if (item.getAttribute('data-heading-id') === headingId) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
         }
         
         // 侧边栏切换功能
-        const filesToggle = document.getElementById('files-toggle');
-        const filesSidebar = document.getElementById('files-sidebar');
-        const tocToggle = document.getElementById('toc-toggle');
-        const tocSidebar = document.getElementById('toc-sidebar');
+        // 初始化全局变量
+        filesToggle = document.getElementById('files-toggle');
+        filesSidebar = document.getElementById('files-sidebar');
+        tocToggle = document.getElementById('toc-toggle');
+        tocSidebar = document.getElementById('toc-sidebar');
+        sidebarOverlay = document.getElementById('sidebar-overlay');
+        filesPopup = document.getElementById('files-popup');
+        tocPopup = document.getElementById('toc-popup');
+        filesPopupContent = document.getElementById('files-popup-content');
+        tocPopupContent = document.getElementById('toc-popup-content');
         
-        if (filesToggle && filesSidebar) {
-            filesToggle.addEventListener('click', function() {
-                filesSidebar.classList.toggle('show-mobile');
+        if (filesToggle) {
+            filesToggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
                 
-                // 更新按钮图标
-                const svg = this.querySelector('svg');
-                const span = this.querySelector('span');
-                if (filesSidebar.classList.contains('show-mobile')) {
-                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>';
-                    span.textContent = '关闭';
-                } else {
-                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>';
-                    span.textContent = '文档';
+                if (isMobile()) {
+                    generateFilesPopupContent();
+                    showFilesPopup();
+                    return;
+                }
+                
+                if (filesSidebar) {
+                    tocSidebar.classList.remove('show-mobile');
+                    filesSidebar.classList.toggle('show-mobile');
+                    
+                    const svg = this.querySelector('svg');
+                    const span = this.querySelector('span');
+                    if (svg && span) {
+                        if (filesSidebar.classList.contains('show-mobile')) {
+                            svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>';
+                            span.textContent = '关闭';
+                        } else {
+                            svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>';
+                            span.textContent = '文档';
+                        }
+                    }
+                    
+                    updateOverlay();
+                }
+            });
+            
+            filesToggle.addEventListener('mouseenter', function() {
+                if (isMobile()) {
+                    generateFilesPopupContent();
                 }
             });
         }
         
-        if (tocToggle && tocSidebar) {
-            tocToggle.addEventListener('click', function() {
-                tocSidebar.classList.toggle('show-mobile');
+        if (tocToggle) {
+            tocToggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
                 
-                // 更新按钮图标
-                const svg = this.querySelector('svg');
-                const span = this.querySelector('span');
-                if (tocSidebar.classList.contains('show-mobile')) {
-                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>';
-                    span.textContent = '关闭';
-                } else {
-                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>';
-                    span.textContent = '目录';
+                if (isMobile()) {
+                    showTocPopup();
+                    return;
+                }
+                
+                if (tocSidebar) {
+                    filesSidebar.classList.remove('show-mobile');
+                    tocSidebar.classList.toggle('show-mobile');
+                    
+                    const svg = this.querySelector('svg');
+                    const span = this.querySelector('span');
+                    if (svg && span) {
+                        if (tocSidebar.classList.contains('show-mobile')) {
+                            svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>';
+                            span.textContent = '关闭';
+                        } else {
+                            svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>';
+                            span.textContent = '目录';
+                        }
+                    }
+                    
+                    updateOverlay();
                 }
             });
         }
+        
+        if (filesPopup) {
+            filesPopup.addEventListener('mouseenter', function() {
+                if (popupTimeout) {
+                    clearTimeout(popupTimeout);
+                    popupTimeout = null;
+                }
+            });
+            
+            filesPopup.addEventListener('mouseleave', function() {
+                popupTimeout = setTimeout(hideAllPopups, 300);
+            });
+        }
+        
+        if (tocPopup) {
+            tocPopup.addEventListener('mouseenter', function() {
+                if (popupTimeout) {
+                    clearTimeout(popupTimeout);
+                    popupTimeout = null;
+                }
+            });
+            
+            tocPopup.addEventListener('mouseleave', function() {
+                popupTimeout = setTimeout(hideAllPopups, 300);
+            });
+        }
+        
+        if (filesToggle) {
+            filesToggle.addEventListener('mouseleave', function() {
+                if (isMobile()) {
+                    popupTimeout = setTimeout(hideAllPopups, 300);
+                }
+            });
+        }
+        
+        if (tocToggle) {
+            tocToggle.addEventListener('mouseleave', function() {
+                if (isMobile()) {
+                    popupTimeout = setTimeout(hideAllPopups, 300);
+                }
+            });
+        }
+        
+        // 点击遮罩层关闭所有侧边栏
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', closeAllSidebars);
+        }
+        
+        // 阻止侧边栏内部点击事件冒泡
+        if (filesSidebar) {
+            filesSidebar.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        }
+        
+        if (tocSidebar) {
+            tocSidebar.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        }
+        
+        // ESC键关闭侧边栏
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeAllSidebars();
+            }
+        });
         
         });
         
