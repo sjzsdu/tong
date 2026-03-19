@@ -3,6 +3,7 @@ package project
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/sjzsdu/tong/helper"
 )
@@ -148,9 +149,38 @@ func BuildProjectTree(targetPath string, options helper.WalkDirOptions) (*Projec
 			}
 		}
 
-		// 检查排除规则
-		if helper.IsPathExcluded(path, options.Excludes, targetPath) {
-			return nil
+		// 检查排除规则（根据 DisableGitIgnore 参数决定是否检查 .gitignore 规则）
+		if options.DisableGitIgnore {
+			// 只检查自定义排除规则，不检查 .gitignore 规则
+			for _, pattern := range options.Excludes {
+				// 使用完整路径进行匹配
+				matched, err := filepath.Match(pattern, filepath.Base(path))
+				if err == nil && matched {
+					return nil
+				}
+
+				// 检查相对路径
+				relPath, err := filepath.Rel(targetPath, path)
+				if err == nil {
+					matched, err = filepath.Match(pattern, relPath)
+					if err == nil && matched {
+						return nil
+					}
+				}
+
+				// 对于包含 ** 的模式，需要特殊处理
+				if strings.Contains(pattern, "**") {
+					pattern = strings.ReplaceAll(pattern, "**", "*")
+					if strings.Contains(path, pattern) {
+						return nil
+					}
+				}
+			}
+		} else {
+			// 检查自定义排除规则和 .gitignore 规则
+			if helper.IsPathExcluded(path, options.Excludes, targetPath) {
+				return nil
+			}
 		}
 
 		// 创建文件节点，根据选项决定是否立即加载内容

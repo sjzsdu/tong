@@ -215,7 +215,9 @@ func runMarkdownServer() {
 // getCurrentProject 获取当前最新的项目树
 func getCurrentProject() (*project.Project, error) {
 	currentDir, _ := os.Getwd()
-	return project.BuildProjectTree(currentDir, helper.WalkDirOptions{})
+	return project.BuildProjectTree(currentDir, helper.WalkDirOptions{
+		DisableGitIgnore: true,
+	})
 }
 
 // handleMarkdownList 处理markdown文件列表页面

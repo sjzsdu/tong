@@ -634,12 +634,10 @@ func displayValue(sb *strings.Builder, fullKey string, value interface{}, depth 
 			displayFlat(sb, v, fullKey, depth+1, maxDepth, maxLen)
 		}
 	case []interface{}:
-		// 数组始终作为整体显示，不展开
+		// 数组始终作为整体显示，不展开，且全量输出
 		b, _ := json.Marshal(v)
 		display := string(b)
-		if maxLen > 0 && len(display) > maxLen {
-			display = display[:maxLen] + "..."
-		}
+		// 数组全量输出，不截断
 		sb.WriteString(fmt.Sprintf("%s%s: %s\n", recordIndent, fullKey, display))
 	case string:
 		display := strings.TrimSpace(v)
